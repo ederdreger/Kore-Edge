@@ -126,11 +126,13 @@ type credentialFile struct {
 	Settings   *PeerSettings `json:"settings"`
 }
 type CredentialStore struct {
-	mu        sync.Mutex
-	directory string
-	lock      *os.File
-	data      credentialFile
-	closed    bool
+	mu                   sync.Mutex
+	directory            string
+	lock                 *os.File
+	data                 credentialFile
+	closed               bool
+	distributionRevision uint64
+	distributionPublic   string
 }
 
 func OpenCredentials(directory string) (*CredentialStore, error) {

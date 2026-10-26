@@ -40,6 +40,22 @@ func (s *CredentialStore) distributionSecret() ([]byte, string, error) {
 	return shared, s.publicKey(), nil
 }
 
+// MatchesDistribution checks the pinned identity without constructing a panel
+// DTO or repeating X25519 on every transport packet. Revision changes invalidate
+// the public-key cache; no private material is cached or returned here.
+func (s *CredentialStore) MatchesDistribution(edge, matrix string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || s.data.Settings == nil {
+		return false
+	}
+	if s.distributionRevision != s.data.Revision || s.distributionPublic == "" {
+		s.distributionPublic = s.publicKey()
+		s.distributionRevision = s.data.Revision
+	}
+	return s.distributionPublic != "" && edge == s.distributionPublic && matrix == s.data.Settings.KorePlayPublicKey
+}
+
 // DistributionHeaders proves possession of the existing Edge identity. Neither
 // private key nor shared secret is exported in an HTTP request or browser DTO.
 func (s *CredentialStore) DistributionHeaders(path string) (http.Header, error) {

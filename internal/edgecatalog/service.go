@@ -381,14 +381,10 @@ func (s *Service) Run(ctx context.Context) {
 	}
 }
 func (s *Service) allowed(id, protocol string) bool {
-	identity, e := s.credentials.Snapshot()
-	if e != nil || identity.Settings == nil {
-		return false
-	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	data := s.data
-	if data.Catalog == nil || !time.Now().Before(data.Catalog.ExpiresAt) || identity.PublicKey != data.EdgeKey || identity.Settings.KorePlayPublicKey != data.MatrixKey {
+	if data.Catalog == nil || !time.Now().Before(data.Catalog.ExpiresAt) || !s.credentials.MatchesDistribution(data.EdgeKey, data.MatrixKey) {
 		return false
 	}
 	for _, channel := range data.Catalog.Channels {

@@ -10,14 +10,10 @@ import (
 // expands a source grant into a redistribution grant.
 func (s *Service) Authorized(id, protocol string) bool { return s.allowed(id, protocol) }
 func (s *Service) OutputAuthorized(id, output string) bool {
-	identity, e := s.credentials.Snapshot()
-	if e != nil || identity.Settings == nil {
-		return false
-	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	data := s.data
-	if data.Catalog == nil || !time.Now().Before(data.Catalog.ExpiresAt) || identity.PublicKey != data.EdgeKey || identity.Settings.KorePlayPublicKey != data.MatrixKey {
+	if data.Catalog == nil || !time.Now().Before(data.Catalog.ExpiresAt) || !s.credentials.MatchesDistribution(data.EdgeKey, data.MatrixKey) {
 		return false
 	}
 	for _, channel := range data.Catalog.Channels {
