@@ -5,9 +5,13 @@ umask 077
 
 apply=0 lab=0 start=0 profile=media listen=''
 source_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+if (($# == 0)) && [[ -t 0 && -t 1 ]]; then
+  exec bash "$source_dir/scripts/setup.sh"
+fi
 usage() {
   cat <<'EOF'
 Kore Edge - instalador Ubuntu Server 24.04 (laboratorio; homologacao NO-GO)
+  bash scripts/setup.sh   # assistente simples com perguntas por etapas
   bash scripts/install.sh --listen IP:PORTA [--profile core|media] [--plan]
   sudo bash scripts/install.sh --listen IP:PORTA --apply --lab-only [--start]
 

@@ -1,5 +1,11 @@
 # Instalador de laboratório — Ubuntu Server 24.04
 
+**Quer instalar respondendo perguntas?** Execute `bash scripts/setup.sh` e siga
+o [passo a passo simples](INSTALACAO-SIMPLES.md). Sem argumentos em um terminal,
+`bash scripts/install.sh` também abre esse assistente. Ele mostra o plano antes
+da escolha final e não instala sem confirmação. O restante deste documento é a
+referência técnica do modo por parâmetros.
+
 O sistema e o instalador são públicos em
 [ederdreger/Kore-Edge](https://github.com/ederdreger/Kore-Edge). O estado de
 homologação permanece **NO-GO para produção**: há uma falha de concorrência

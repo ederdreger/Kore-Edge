@@ -4,20 +4,25 @@ Repositório público: [ederdreger/Kore-Edge](https://github.com/ederdreger/Kore
 
 ## Instalação Ubuntu Server 24.04
 
-O [instalador](scripts/install.sh) prepara pacotes, compila e testa sem root,
-inclui a dashboard e instala uma unidade systemd com conta sem login. O padrão
-é **simulação**; `--apply --lab-only` é necessário para alterar um laboratório.
-Endereço/porta são obrigatórios; serviço só inicia com `--start`, sem enable no boot.
-Leia [pré-verificação, pacotes, instalação e rollback](docs/INSTALL.md).
-O sistema permanece em **NO-GO para produção**, conforme a homologação abaixo.
+Use o **assistente de instalação**, que solicita os dados por etapas:
 
 ```sh
 git clone https://github.com/ederdreger/Kore-Edge.git
 cd Kore-Edge
-bash scripts/install.sh --plan --profile media --listen '<LOOPBACK_IP:PORTA_CONFIRMADOS>'
+bash scripts/setup.sh
 ```
 
-Substitua o placeholder somente após revisar o listener do laboratório.
+Ele pergunta se o servidor é de laboratório, o que instalar, endereço local,
+porta e se deve iniciar o painel. Ao final mostra o resumo: escolha **1** para
+instalar, **2** para apenas simular ou **3** para cancelar. Se necessário, o sudo
+solicita a senha do seu usuário administrador.
+
+Já baixou o projeto? Dentro da pasta, execute `git pull --ff-only` e depois
+`bash scripts/setup.sh`.
+
+Veja o [passo a passo simples](docs/INSTALACAO-SIMPLES.md).
+[Documentação técnica e rollback](docs/INSTALL.md) para operadores avançados.
+O sistema permanece em laboratório, **sem homologação para produção**.
 
 ## Implementação — execução local
 

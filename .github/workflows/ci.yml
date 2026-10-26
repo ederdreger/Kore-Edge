@@ -17,7 +17,7 @@ jobs:
           go-version: stable
       - run: go vet ./...
       - run: test -z "$(gofmt -l cmd internal tests)"
-      - run: bash -n scripts/install.sh
+      - run: for script in scripts/*.sh; do bash -n "$script"; done
       - run: go test -race ./... -count=1 -timeout=180s
       - run: go test ./internal/provision -run '^TestConcurrentConsumptionAcrossRegistryInstances$' -count=50 -timeout=120s
       - run: go build ./cmd/...
