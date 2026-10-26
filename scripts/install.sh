@@ -4,6 +4,7 @@ set -Eeuo pipefail
 umask 077
 
 apply=0 lab=0 start=0 profile=media listen=''
+resume_packages=0
 public_host='' public_port='' gateway_user=admin
 source_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 source "$source_dir/scripts/gateway-lib.sh"
@@ -28,6 +29,7 @@ Kore Edge - instalador Ubuntu Server 24.04 (laboratorio; homologacao NO-GO)
 --public-host Dominio ou IP da VPS para gateway HTTPS com senha (opcional).
 --public-port Porta HTTPS explicita; exige --public-host e backend 127.0.0.1.
 --gateway-user Usuario do painel [admin]. Senha somente no terminal, nunca argv.
+--resume-packages Retomar pacotes de tentativa interrompida; Nginx deve estar mascarado e inativo.
 
 Nao ha instalacao por curl|sudo bash. Revise o checkout e o plano antes de aplicar.
 EOF
@@ -40,6 +42,7 @@ while (($#)); do
     --apply) apply=1 ;;
     --lab-only) lab=1 ;;
     --start) start=1 ;;
+    --resume-packages) resume_packages=1 ;;
     --profile|--listen|--public-host|--public-port|--gateway-user)
       (($# >= 2)) || die 'Opcao sem valor.'
       case "$1" in
@@ -70,6 +73,7 @@ if [[ -n $public_host ]]; then
   [[ $gateway_user =~ ^[a-zA-Z][a-zA-Z0-9_-]{0,31}$ ]] || die 'Usuario do painel invalido.'
   [[ $listen == "127.0.0.1:$port" && $port != "$public_port" ]] || die 'Gateway exige backend IPv4 loopback e portas distintas.'
 elif [[ -n $public_port || $gateway_user != admin ]]; then die '--public-port/--gateway-user exigem --public-host.'; fi
+if ((resume_packages)) && [[ -z $public_host ]]; then die 'Retomada de pacotes Nginx exige --public-host.'; fi
 
 packages=(ca-certificates curl git golang-go build-essential iproute2)
 if [[ $profile == media ]]; then packages+=(ffmpeg wireguard-tools); fi
@@ -95,6 +99,7 @@ if [[ -n $public_host ]]; then
   printf '%s\n' 'Certificado local autoassinado (aviso no navegador); sem ACME automatico.'
   printf '%s\n' 'Gateway escuta interfaces publicas na porta escolhida. Firewall/DNS nao serao alterados.'
   printf '%s\n' 'Nginx preexistente nao e adotado. A unidade nginx padrao sera mascarada antes do APT.'
+  if ((resume_packages)); then printf '%s\n' 'Retomada solicitada: reutilizar pacotes, sem modificar sites existentes. Nginx deve estar mascarado/inativo.'; fi
   printf '%s\n' 'Rollback adicional: parar/remover apenas kore-edge-gateway e revisar a mascara nginx criada.'
 fi
 if (( ! apply )); then
@@ -137,8 +142,17 @@ if systemctl cat kore-edge.service >/dev/null 2>&1; then die 'Unidade kore-edge 
 if ss -H -ltn "sport = :$port" | grep -q .; then die 'Porta ocupada; escolha e confirme outro listener.'; fi
 if [[ -n $public_host ]]; then
   [[ -t 0 ]] || die 'Senha do gateway exige terminal interativo.'
-  [[ ! -e /etc/nginx && ! -L /etc/systemd/system/nginx.service && ! -e /etc/systemd/system/kore-edge-gateway.service && ! -L /etc/systemd/system/kore-edge-gateway.service ]] || die 'Nginx/gateway preexistente; nao sera sobrescrito.'
-  if command -v nginx >/dev/null 2>&1 || systemctl cat nginx.service >/dev/null 2>&1; then die 'Nginx preexistente; revisar configuracao manualmente.'; fi
+  [[ ! -e /etc/systemd/system/kore-edge-gateway.service && ! -L /etc/systemd/system/kore-edge-gateway.service ]] || die 'Gateway preexistente; nao sera sobrescrito.'
+  if ((resume_packages)); then
+    command -v pgrep >/dev/null || die 'pgrep ausente; nao e possivel verificar processos Nginx na retomada.'
+    # Reuse the package binary only. The default sites/config remain untouched.
+    [[ -L /etc/systemd/system/nginx.service && $(readlink /etc/systemd/system/nginx.service) == /dev/null ]] || die 'Retomada exige a mascara nginx criada na tentativa anterior.'
+    [[ $(systemctl is-enabled nginx.service 2>/dev/null || true) == masked ]] || die 'Estado da mascara nginx divergente.'
+    if systemctl is-active --quiet nginx.service || pgrep -x nginx >/dev/null; then die 'Nginx em execucao; retomada recusada.'; fi
+  else
+    [[ ! -e /etc/nginx && ! -L /etc/systemd/system/nginx.service ]] || die 'Nginx preexistente; se uma tentativa falhou apos APT, use a retomada guiada.'
+    if command -v nginx >/dev/null 2>&1 || systemctl cat nginx.service >/dev/null 2>&1; then die 'Nginx preexistente; revisar configuracao manualmente.'; fi
+  fi
   if ss -H -ltn "sport = :$public_port" | grep -q .; then die 'Porta HTTPS ocupada.'; fi
   # These secrets stay shell-local until written to the private bcrypt file.
   while :; do

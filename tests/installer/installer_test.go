@@ -24,7 +24,7 @@ func bash(t *testing.T) string {
 	return path
 }
 
-func runWizard(t *testing.T, input string, detect bool) (string, error) {
+func runWizard(t *testing.T, input string, detect bool, args ...string) (string, error) {
 	t.Helper()
 	directory := t.TempDir()
 	ip := "#!/usr/bin/env bash\nexit 0\n"
@@ -43,7 +43,7 @@ func runWizard(t *testing.T, input string, detect bool) (string, error) {
 	marker := filepath.Join(directory, "mutation")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	command := exec.CommandContext(ctx, bash(t), "-c", `directory=$1; if command -v cygpath >/dev/null 2>&1; then directory=$(cygpath -u "$directory"); fi; export PATH="$directory:$PATH"; exec bash ../../scripts/setup.sh`, "wizard-test", directory)
+	command := exec.CommandContext(ctx, bash(t), append([]string{"-c", `directory=$1; shift; if command -v cygpath >/dev/null 2>&1; then directory=$(cygpath -u "$directory"); fi; export PATH="$directory:$PATH"; exec bash ../../scripts/setup.sh "$@"`, "wizard-test", directory}, args...)...)
 	command.Env = append(os.Environ(), "KORE_TEST_MUTATION_MARKER="+filepath.ToSlash(marker))
 	command.Stdin = strings.NewReader(input)
 	out, e := command.CombinedOutput()
@@ -51,6 +51,17 @@ func runWizard(t *testing.T, input string, detect bool) (string, error) {
 		t.Fatal("wizard invoked a mutating command")
 	}
 	return string(out), e
+}
+
+func TestWizardPackageResumeIsExplicitAndDoesNotMutateDuringPlan(t *testing.T) {
+	output, e := runWizard(t, "s\n1\npanel.example.com\n8443\nadmin\ns\n2\n", true, "--resume-packages")
+	if e != nil || !strings.Contains(output, "Retomada solicitada") || !strings.Contains(output, "Simulacao concluida") {
+		t.Fatal(output, e)
+	}
+	output, e = run(t, "--plan", "--listen", "127.0.0.1:18080", "--resume-packages")
+	if e == nil || !strings.Contains(output, "exige --public-host") {
+		t.Fatal("unscoped resume accepted", output, e)
+	}
 }
 func TestWizardGuidedSimulation(t *testing.T) {
 	output, e := runWizard(t, "s\n\npainel.example.com\n8443\n\ns\n2\n", true)

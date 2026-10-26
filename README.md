@@ -22,6 +22,9 @@ solicita a senha do seu usuário administrador.
 Já baixou o projeto? Dentro da pasta, execute `git pull --ff-only` e depois
 `bash scripts/setup.sh`.
 
+Se uma tentativa falhou nos testes após instalar pacotes, consulte a
+[retomada da instalação](docs/INSTALACAO-SIMPLES.md) antes de remover arquivos.
+
 Veja o [passo a passo simples](docs/INSTALACAO-SIMPLES.md).
 [Documentação técnica e rollback](docs/INSTALL.md) para operadores avançados.
 O sistema permanece em laboratório, **sem homologação para produção**.

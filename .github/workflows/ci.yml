@@ -25,7 +25,10 @@ jobs:
           apt-get download nginx
           dpkg-deb -x nginx_*.deb root
           echo "KORE_EDGE_NGINX=$PWD/root/usr/sbin/nginx" >> "$GITHUB_ENV"
-      - run: go test -race ./... -count=1 -timeout=180s
+      - name: Tests with the installer's restrictive umask
+        run: |
+          umask 077
+          go test -race ./... -count=1 -timeout=180s
       - run: go test ./internal/provision -run '^TestConcurrentConsumptionAcrossRegistryInstances$' -count=50 -timeout=120s
       - run: go build ./cmd/...
   web:

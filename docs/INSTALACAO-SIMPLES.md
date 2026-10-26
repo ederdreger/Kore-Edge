@@ -63,6 +63,27 @@ O serviço não fica habilitado para iniciar automaticamente no boot.
 
 ## 5. Abra o painel
 
+### Se uma tentativa parou durante os testes
+
+Se apareceu `TestRejectPublicSecretPermissions: public secret accepted`, atualize
+o projeto: a fixture desse teste foi corrigida para a umask privada do instalador.
+Não desative o teste nem altere permissões de arquivos reais.
+
+Se os pacotes já foram instalados e o Nginx padrão ficou mascarado/inativo pela
+tentativa anterior, execute dentro da pasta Kore-Edge:
+
+```sh
+git pull --ff-only
+bash scripts/setup.sh --resume-packages
+```
+
+Responda novamente às etapas. Esse modo reutiliza pacotes, sem sobrescrever sites,
+configuração ou dados existentes. Se houver Nginx em execução, máscara diferente
+ou uma instalação do Kore Edge já publicada, ele recusa a retomada para inspeção.
+Os avisos do Ubuntu sobre reinícios adiados não são esse erro de teste.
+
+### Acesso depois da instalação
+
 Se escolheu iniciar, abra a URL HTTPS mostrada no seu computador. Digite o usuário
 e a senha cadastrados quando o navegador solicitar. Não precisa de túnel SSH.
 

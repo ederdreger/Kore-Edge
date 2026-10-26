@@ -4,12 +4,16 @@ set -Eeuo pipefail
 installer="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/install.sh"
 if (($#)); then
   if [[ $1 == --help && $# == 1 ]]; then
-    printf '%s\n' 'Uso: bash scripts/setup.sh' 'Responda as etapas. Nada sera instalado sem sua escolha final.'
+  printf '%s\n' 'Uso: bash scripts/setup.sh [--resume-packages]' 'Responda as etapas. Nada sera instalado sem sua escolha final.'
     exit 0
   fi
-  printf '%s\n' 'Opcao desconhecida. Execute: bash scripts/setup.sh' >&2
-  exit 1
+  if [[ $1 != --resume-packages || $# != 1 ]]; then
+    printf '%s\n' 'Opcao desconhecida. Execute: bash scripts/setup.sh' >&2
+    exit 1
+  fi
 fi
+resume_args=()
+if [[ ${1:-} == --resume-packages ]]; then resume_args=(--resume-packages); fi
 source "$(dirname -- "$installer")/gateway-lib.sh"
 answer=''
 ask() {
@@ -83,7 +87,7 @@ while :; do
 done
 
 printf '\nETAPA 5/5 - Resumo e confirmacao\n'
-bash "$installer" --plan --profile "$profile" --listen "$listen" "${public_args[@]}"
+bash "$installer" --plan --profile "$profile" --listen "$listen" "${public_args[@]}" "${resume_args[@]}"
 if ((start)); then printf '%s\n' 'Inicio solicitado: SIM, somente o novo servico.'; else printf '%s\n' 'Inicio solicitado: NAO, apenas instalar os arquivos.'; fi
 printf '\nPainel da VPS: %s\n' "$(gateway_url "$public_host" "$public_port")"
 printf '%s\n' 'Pacotes existentes nao serao removidos. Arquivos existentes nao serao sobrescritos.'
@@ -101,7 +105,7 @@ if [[ ! -t 0 || ! -t 1 ]]; then
   printf '%s\n' 'Para instalar, execute o assistente em um terminal interativo. Entrada por pipe nao instala.' >&2
   exit 1
 fi
-arguments=(--apply --lab-only --profile "$profile" --listen "$listen" "${public_args[@]}")
+arguments=(--apply --lab-only --profile "$profile" --listen "$listen" "${public_args[@]}" "${resume_args[@]}")
 if ((start)); then arguments+=(--start); fi
 printf '\nIniciando instalacao. Aguarde a verificacao, os pacotes e os testes.\n'
 if ((EUID == 0)); then exec bash "$installer" "${arguments[@]}"; fi

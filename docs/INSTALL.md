@@ -131,6 +131,17 @@ nginx.service padrão é mascarada para impedir seu início com o site padrão;
 continua mascarada, pois o serviço dedicado usa configuração própria. Não há
 adoção de sites existentes. Falha pode deixar essa nova máscara para revisão.
 
+Para uma tentativa que falhou **nos testes antes da publicação dos arquivos**,
+`bash scripts/setup.sh --resume-packages` permite reutilizar pacotes já baixados.
+O operador solicita isso explicitamente; o instalador exige nginx.service mascarada
+com symlink para /dev/null, estado masked, nenhum processo Nginx ativo e nenhum
+destino Kore Edge existente. Os sites/configs padrão não são modificados. Não é
+um modo de upgrade nem adoção de Nginx ativo. Sem essa flag, a recusa original é
+preservada. Pré-verificação de leitura: `systemctl is-enabled nginx.service`,
+`systemctl is-active nginx.service` e `pgrep -x nginx`; resultados esperados são
+masked, inactive e nenhum processo. Não é necessário remover máscara, reinstalar
+o Ubuntu ou reiniciar serviços de terceiros para repetir a suíte corrigida.
+
 Certificado autoassinado com SAN de domínio/IP, chave e bcrypt ficam em
 `/etc/kore-edge/gateway` (0700, arquivos 0600, dono kore-edge). Senha é pedida no
 TTY com confirmação, nunca em argv, ambiente exportado ou logs. Access/error logs
