@@ -16,6 +16,12 @@ canais para este Edge** na tela WireGuard também abre o parceiro correspondente
 Use **Editar cadastro do parceiro** para alterar nome ou bloqueio e **Selecionar
 canais e protocolos** para voltar à lista.
 
+O painel distingue **canais na plataforma**, **resultados da busca** e **canais
+selecionados para o parceiro**. Se aparecerem menos canais, use **Limpar filtros
+e mostrar todos** e navegue por **Próxima página**. **Selecionar canais desta
+busca** marca todos os resultados compatíveis, inclusive outras páginas. A
+autorização só muda quando você publica com sua senha; navegar não libera canais.
+
 ## 2. No Edge: buscar a lista
 
 1. Abra **Canais**, onde aparece **Canais do Kore Play**.
@@ -24,6 +30,30 @@ canais e protocolos** para voltar à lista.
 4. Informe novamente a senha, confirme a consulta e clique em **Buscar canais**.
 5. Confira o nome do parceiro, a quantidade de canais e a última busca. Com atualização automática habilitada, a lista é renovada a cada minuto.
 6. Use **Testar sinal** em um canal piloto. A tela informa se uma amostra válida foi recebida e o horário da verificação.
+
+## 3. No Edge: assistir à prévia de um canal
+
+1. Na lista de canais autorizados, clique em **Play** na linha do canal/protocolo.
+2. Um mini player abre no canto inferior direito, com vídeo, volume e tela cheia
+   nos controles do navegador. O áudio inicia silenciado: ative-o no vídeo.
+3. Confira o estado **Reproduzindo**. **Carregando** significa que ainda não há
+   confirmação de reprodução. Falhas mostram uma orientação, sem exibir a origem.
+4. Clique no Play de outro canal para trocar. Apenas uma prévia fica ativa.
+5. Use **Parar e fechar**, o **X** ou **Esc** para encerrar a transmissão.
+
+A prévia dura até cinco minutos. Pausar encerra sua conexão; use **Reproduzir
+novamente** ou Play na linha para retomar. Um fluxo sem avanço por 20 segundos
+encerra com mensagem de erro. Ao sair da página, fechar, trocar de canal ou perder
+a autorização, o player libera sua conexão e o buffer.
+
+HLS usa suporte nativo quando disponível ou HLS.js; HTTP MPEG-TS usa mpegts.js
+com MediaSource. As bibliotecas são servidas pelo próprio Edge. Áudio e vídeo
+precisam de codecs compatíveis com o navegador; não há transcodificação automática.
+Uma amostra TS válida ou playlist HLS acessível não garante que o navegador
+conseguirá decodificar o conteúdo. O player ajuda a fazer essa conferência visual.
+
+O vídeo usa sua sessão autenticada do Edge e as permissões do parceiro. O player
+não divulga a URL original nem fornece um link público para reprodução externa.
 
 Buscar a lista não inicia todos os canais. **Entrada de mídia autenticada** mostra o caminho protegido pela sessão do Edge, sem revelar a origem da central. Este módulo não conecta o catálogo real ao Stream Engine sintético nem cria saídas multicast automaticamente.
 

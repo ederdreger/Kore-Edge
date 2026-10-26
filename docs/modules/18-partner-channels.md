@@ -28,6 +28,26 @@ HLS reescreve playlists/URI e usa referências cifradas vinculadas a parceiro/ca
 
 ## Aceite e validação
 
+O mini player (`web/src/channel-player.tsx` / `preview-engine.ts`) abre somente
+após Play explícito. Usa HLS nativo/HLS.js 1.7.3 ou mpegts.js 1.8.2, dependências
+fixadas e licenças incorporadas ao build. Não transcodifica; a compatibilidade
+dos codecs é verificada na prática pelo navegador. Referências:
+[HLS.js](https://hlsjs.video-dev.org/api-docs/hls.js.hls) e
+[mpegts.js](https://github.com/xqq/mpegts.js/blob/master/docs/api.md).
+
+Uma prévia por página, cinco minutos no máximo, watchdog de 20 segundos sem
+avanço, buffers limitados/limpos e mensagens que distinguem carregamento,
+reprodução, pausa e erro. Pausa, fechamento, troca, navegação e perda da
+autorização destroem o engine/conexão. HLS restringe cada pedido à mesma origem
+e ao canal selecionado; CSP `media-src 'self' blob:` e `connect-src 'self'`.
+Workers e logs dos engines ficam desabilitados. As URLs de origem continuam
+exclusivas da central. Não iniciar mídia real automaticamente após atualização.
+
+Testes de frontend usam engines/media sintéticos: HLS/TS/nativo, browser não
+suportado, erro de autorização, importação cancelada, pause/cleanup idempotente,
+timeouts, troca/reabertura, Escape e expiração. Não constituem homologação de
+decodificação com codecs reais ou teste de carga. O teste Go verifica a CSP.
+
 Testes sintéticos verificam publicação, revisão concorrente, autenticação, replay, canais não concedidos, revogação de relay em andamento, HLS sem vazamento de credenciais, escopo de referências, filtros de endereços, persistência, validade e preservação de catálogo. Testes da tela verificam busca explícita, resultado amostral e leitura sem ações administrativas para viewer.
 
 Executar `go vet ./...`, `go test ./...`, `go test -race ./...` em Linux; `npm --prefix web test`, `npm --prefix web run check`, `npm --prefix web run build`. Na matriz: `npm test`, lint das páginas de integração e `npm run build`. Usar apenas fontes sintéticas nestas verificações.

@@ -8,6 +8,10 @@ A central conserva as origens e autoriza cada solicitação de mídia. O Edge
 expõe apenas entradas locais autenticadas HTTP MPEG-TS/HLS já existentes na
 origem; não conecta este catálogo ao Stream Engine sintético nem cria saídas
 multicast. Validade, revogação e testes amostrais são explícitos no painel.
+O mini player usa somente o proxy autenticado local, com HLS.js ou mpegts.js
+carregados sob demanda e sem workers. A CSP permite mídia local/blob e mantém
+conexões restritas à própria origem. Prévia única limitada a cinco minutos, com
+liberação de recursos ao fechar, trocar, pausar ou expirar a autorização.
 Veja [contrato e limites](modules/18-partner-channels.md).
 
 ```text

@@ -6,7 +6,9 @@ No Kore Play, **Canais → Parceiros Kore Edge** permite escolher o parceiro e
 salvar o parceiro e abrir automaticamente a seleção de canais e protocolos.
 Parceiros existentes têm botão explícito para editar a seleção e publicá-la.
 No Edge, **Canais → Canais do Kore Play** busca a lista,
-mostra HTTP MPEG-TS/HLS disponíveis na origem e oferece teste curto de sinal.
+mostra HTTP MPEG-TS/HLS disponíveis na origem, teste curto de sinal e **Play**
+por canal. O mini player abre uma prévia autenticada por vez, com pausa/fechamento
+encerrando a conexão e limite de cinco minutos. Codecs dependem do navegador.
 Sem canais de demonstração, conversão automática ou liberação entre parceiros.
 Veja o [passo a passo](docs/CANAIS-KORE-PLAY.md) e o
 [contrato e limites](docs/modules/18-partner-channels.md).
