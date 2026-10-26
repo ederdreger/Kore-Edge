@@ -1,0 +1,12 @@
+.wg-guide { display: grid; gap: 20px; max-width: 1000px; margin-inline: auto; }
+.wg-guide .wg-steps { display: flex; flex-wrap: wrap; gap: 12px; padding: 0; list-style: none; }
+.wg-guide .wg-steps li { flex: 1 1 180px; padding: 14px; border: 1px solid #37205c; border-radius: 10px; color: #bcb4d1; }
+.wg-guide .wg-steps [aria-current="step"] { background: #32105b; border-color: #a53cff; color: #fff; }
+.wg-guide details { padding: 14px; border: 1px solid #37205c; border-radius: 10px; }
+.wg-guide summary { cursor: pointer; font-weight: 600; }
+.wg-guide details[open] > summary { margin-bottom: 16px; }
+.wg-guide label { display: grid; gap: 8px; }
+.wg-guide .wg-confirm { display: flex; }
+.wg-guide .wg-public { display: grid; gap: 16px; }
+.wg-guide button { width: fit-content; max-width: 100%; }
+.wg-guide textarea { width: 100%; overflow-wrap: anywhere; }

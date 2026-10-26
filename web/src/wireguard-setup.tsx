@@ -6,7 +6,7 @@ import { WireGuardConnection } from './wireguard-connection';
 
 type Settings={interface:string;address:string;listen_port:number;edge_endpoint:string;kore_play_public_key:string;kore_play_endpoint:string;allowed_ips:string[];keepalive_seconds:number};
 export type Status={state:string;applied:boolean;public_key:string;revision:number;settings:Settings|null;kore_play_peer:string};
-export function WireGuardSetup(){
+export function WireGuardAdvanced(){
  const keyField=useRef<HTMLTextAreaElement>(null),peerField=useRef<HTMLTextAreaElement>(null);const[copyStatus,setCopyStatus]=useState('');const[copyBusy,setCopyBusy]=useState(false);
  const account=useAccount();const[status,setStatus]=useState<Status|null>(null);const[busy,setBusy]=useState(false);const[message,setMessage]=useState('');
  const[password,setPassword]=useState('');const[confirmed,setConfirmed]=useState(false);
@@ -49,3 +49,5 @@ export function WireGuardSetup(){
  <p className="muted">Salvar prepara o cadastro local. Use o assistente de conexão para revisar e autorizar a ativação real.</p>
  </section>;
 }
+
+export { WireGuardGuided as WireGuardSetup } from "./wireguard-guided";

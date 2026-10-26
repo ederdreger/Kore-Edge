@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { WireGuardSetup } from './wireguard-setup';
+import { WireGuardAdvanced as WireGuardSetup } from './wireguard-setup';
 import { AccountContext } from './account-context';
 import type { PanelUser } from './account-context';
 afterEach(cleanup);
