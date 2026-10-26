@@ -1,5 +1,25 @@
 # Arquitetura técnica
 
+## Recepção real compartilhada
+
+`internal/live` liga o catálogo do parceiro às saídas reais, sem alterar o
+contrato sintético do Stream Engine antigo. Configurações ficam privadas fora
+do checkout. Salvar e verificar destino não abrem mídia. Início exige sessão
+administrativa, CSRF, senha, confirmação e geração revisada. Há uma origem por
+canal e fan-out limitado para prévias, UDP e segmentador HLS. Revogação encerra
+o fluxo; a lease assinada não é estendida por falhas de sincronização.
+
+SRT usa Go puro com AES e segredo por parceiro derivado da identidade X25519.
+A matriz escuta somente no IP WireGuard revisado, valida IP do peer, stream ID,
+permissões e cotas. O Edge verifica endereço da interface e seleção de origem
+antes e depois do handshake. A biblioteca não recebe URLs/segredos em argv.
+HLS é remuxado por relay loopback privado, com master playlist em stdin para
+permitir atualização da playlist de mídia sem expor a capacidade em argv.
+
+UDP/HLS exigem grants separados; codecs H.264/AAC são verificados antes do
+segmentador. Prévias e HLS local mantêm autenticação. Limites e operação:
+[distribuição real](modules/19-live-distribution.md).
+
 ## Distribuição autorizada Kore Play → Edge
 
 O módulo real `edgecatalog` consulta pelo túnel um catálogo por parceiro,

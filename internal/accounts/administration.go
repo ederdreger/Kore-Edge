@@ -18,7 +18,7 @@ func UserFromContext(ctx context.Context) (User, bool) {
 func (s *Store) WireGuardChange(actor User, password, action string, change func() error) (result error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed || actor.Role != "admin" || len(password) > 72 || (action != "wireguard_identity" && action != "wireguard_peer" && action != "wireguard_connection" && action != "wireguard_pairing" && action != "partner_catalog_config" && action != "partner_catalog_sync") {
+	if s.closed || actor.Role != "admin" || len(password) > 72 || (action != "wireguard_identity" && action != "wireguard_peer" && action != "wireguard_connection" && action != "wireguard_pairing" && action != "partner_catalog_config" && action != "partner_catalog_sync" && action != "live_config" && action != "live_start" && action != "live_stop") {
 		return ErrRejected
 	}
 	now := time.Now().UTC()

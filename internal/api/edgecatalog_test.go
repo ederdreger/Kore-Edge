@@ -1,10 +1,12 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"golang.org/x/crypto/bcrypt"
 	"kore-edge/internal/accounts"
 	"kore-edge/internal/edgecatalog"
+	"kore-edge/internal/live"
 	"kore-edge/internal/wireguard"
 	"net/http"
 	"net/http/httptest"
@@ -34,7 +36,12 @@ func TestPartnerCatalogSessionAndAdministrativeBoundary(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	h := (&API{Accounts: users, PublicOrigin: "https://edge.example", PartnerCatalog: service}).Handler()
+	manager, e := live.New(context.Background(), filepath.Join(dir, "live"), service)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer manager.Close()
+	h := (&API{Live: manager, Accounts: users, PublicOrigin: "https://edge.example", PartnerCatalog: service}).Handler()
 	var cookie *http.Cookie
 	csrf := ""
 	call := func(method, path string, body any, token string) *httptest.ResponseRecorder {
@@ -69,7 +76,27 @@ func TestPartnerCatalogSessionAndAdministrativeBoundary(t *testing.T) {
 		_ = json.Unmarshal(w.Body.Bytes(), &value)
 		csrf = value.CSRF
 	}
+	for _, path := range []string{"/api/v1/live", "/api/v1/live/media/unlisted/stream.ts", "/api/v1/live/hls/unlisted/index.m3u8"} {
+		if w := call("GET", path, nil, ""); w.Code != 401 {
+			t.Fatal("anonymous live access", path, w.Code)
+		}
+	}
 	login("owner")
+	for _, path := range []string{"/api/v1/live", "/api/v1/live/capabilities"} {
+		if w := call("GET", path, nil, ""); w.Code != 200 {
+			t.Fatal("live inventory", w.Code)
+		}
+	}
+	if w := call("POST", "/api/v1/live/action", map[string]any{"action": "start", "channel_id": "unlisted", "confirmed": true, "current_password": password}, ""); w.Code != 403 {
+		t.Fatal("live missing CSRF", w.Code)
+	}
+	if w := call("POST", "/api/v1/live/action", map[string]any{"action": "start", "channel_id": "unlisted", "confirmed": true, "current_password": "wrong"}, csrf); w.Code != 403 {
+		t.Fatal("live password", w.Code)
+	}
+	if w := call("POST", "/api/v1/live/action", map[string]any{"action": "start", "channel_id": "unlisted", "confirmed": true, "current_password": password}, csrf); w.Code != 400 {
+		t.Fatal("unlisted start", w.Code)
+	}
+
 	if w := call("GET", "/api/v1/kore-play/catalog", nil, ""); w.Code != 200 || strings.Contains(w.Body.String(), "private_key") {
 		t.Fatal("catalog session", w.Code)
 	}
@@ -85,6 +112,10 @@ func TestPartnerCatalogSessionAndAdministrativeBoundary(t *testing.T) {
 		t.Fatal("viewer creation", w.Code)
 	}
 	login("reader")
+	if w := call("POST", "/api/v1/live/action", map[string]any{"action": "stop", "channel_id": "unlisted", "confirmed": true, "current_password": password}, csrf); w.Code != 403 {
+		t.Fatal("live viewer mutation", w.Code)
+	}
+
 	if w := call("GET", "/api/v1/kore-play/catalog", nil, ""); w.Code != 200 {
 		t.Fatal("viewer cannot read", w.Code)
 	}

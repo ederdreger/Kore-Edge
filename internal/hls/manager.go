@@ -26,6 +26,19 @@ func removeOwned(root, path string) error {
 const MaxSegmentBytes = 8 * 1024 * 1024
 
 type Authorizer func(string, time.Time) bool
+
+// Ready reports an actual playlist, rather than just a started subprocess.
+func (m *Manager) Ready(id string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s := m.sessions[id]
+	if s == nil || m.closed {
+		return false
+	}
+	info, e := os.Lstat(filepath.Join(s.dir, "index.m3u8"))
+	return e == nil && info.Mode().IsRegular() && info.Size() > 0 && time.Since(info.ModTime()) < 15*time.Second
+}
+
 type Manager struct {
 	mu       sync.Mutex
 	config   Config

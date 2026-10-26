@@ -1,13 +1,16 @@
-export type PreviewSource={id:string;name:string;protocol:'hls'|'http_ts'};
+export type PreviewSource={id:string;name:string;protocol:'hls'|'http_ts';scope?:'live'|'output'};
 export type PreviewStatus={kind:'loading'|'playing'|'blocked'|'paused'|'error'|'ended';text:string};
 
 // Only the authenticated local media proxy is a valid preview source.
 export function previewPath(source:PreviewSource){
  if(!/^[a-zA-Z0-9_-]{1,80}$/.test(source.id)||!['hls','http_ts'].includes(source.protocol))throw new Error('invalid_preview');
+ if(source.scope==='live')return `/api/v1/live/media/${source.id}/stream.ts`;
+ if(source.scope==='output'&&source.protocol==='hls')return `/api/v1/live/hls/${source.id}/index.m3u8`;
  return `/api/v1/kore-play/media/${source.id}/${source.protocol}/${source.protocol==='hls'?'index.m3u8':'stream.ts'}`;
 }
 
 export function startPreview(video:HTMLVideoElement,source:PreviewSource,notify:(status:PreviewStatus)=>void){
+ const requestedAt=performance.now();let firstFrame:number|undefined;
  let stopped=false,release:undefined|(()=>void),wasPlaying=false,blocked=false,lastProgress=Date.now(),lastTime=video.currentTime;
  const listeners:Array<[string,EventListener]>=[];
  const listen=(name:string,callback:()=>void)=>{listeners.push([name,callback]);video.addEventListener(name,callback)};
@@ -25,7 +28,7 @@ export function startPreview(video:HTMLVideoElement,source:PreviewSource,notify:
   if(error?.name==='NotAllowedError'){blocked=true;notify({kind:'blocked',text:'O navegador bloqueou o início automático. Clique em Reproduzir no vídeo.'})}
   else finish('error','O navegador não conseguiu reproduzir este formato. Confira os codecs e teste a origem.');
  })}
- listen('playing',()=>{wasPlaying=true;blocked=false;lastProgress=Date.now();notify({kind:'playing',text:'Reproduzindo · mídia recebida pelo Edge'})});
+ listen('playing',()=>{wasPlaying=true;blocked=false;lastProgress=Date.now();firstFrame??=Math.round(performance.now()-requestedAt);notify({kind:'playing',text:`Reproduzindo · início em ${(firstFrame/1000).toFixed(1)} s · ${source.scope==='live'?'recepção contínua':source.scope==='output'?'HLS local':'origem sob demanda'}`})});
  listen('timeupdate',()=>{if(video.currentTime!==lastTime){lastTime=video.currentTime;lastProgress=Date.now()}});
  listen('waiting',()=>notify({kind:'loading',text:'Aguardando vídeo ou preenchendo o buffer…'}));
  listen('pause',()=>{if(wasPlaying)finish('paused','Prévia pausada e conexão encerrada. Use Reproduzir novamente para continuar.')});
@@ -41,7 +44,7 @@ export function startPreview(video:HTMLVideoElement,source:PreviewSource,notify:
    if(video.canPlayType('application/vnd.apple.mpegurl')){video.src=url;video.load();play();return}
    const {default:Hls}=await import('hls.js');if(stopped)return;
    if(!Hls.isSupported()){finish('error','Este navegador não oferece suporte a HLS. Use um navegador com MediaSource ou HLS nativo.');return}
-   const prefix=`/api/v1/kore-play/media/${source.id}/hls/`;
+   const prefix=source.scope==='output'?`/api/v1/live/hls/${source.id}/`:`/api/v1/kore-play/media/${source.id}/hls/`;
    function checked(raw:string){const target=new URL(raw,window.location.origin);if(target.origin!==window.location.origin||!target.pathname.startsWith(prefix)||target.username||target.password||target.search||target.hash)throw new Error('invalid_media_request');return target.href}
    const hls=new Hls({enableWorker:false,debug:false,maxBufferLength:15,maxMaxBufferLength:30,maxBufferSize:24*1024*1024,backBufferLength:10,
     manifestLoadingTimeOut:8000,manifestLoadingMaxRetry:1,levelLoadingTimeOut:8000,levelLoadingMaxRetry:1,fragLoadingTimeOut:8000,fragLoadingMaxRetry:1,

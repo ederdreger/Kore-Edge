@@ -54,6 +54,7 @@ func (s *CredentialStore) DistributionHeaders(path string) (http.Header, error) 
 	stamp := strconv.FormatInt(time.Now().Unix(), 10)
 	n := hex.EncodeToString(nonce)
 	headers := http.Header{}
+	headers.Set("X-Kore-Edge-Features", "live-v1,srt-v1")
 	headers.Set("X-Kore-Edge-Key", public)
 	headers.Set("X-Kore-Edge-Time", stamp)
 	headers.Set("X-Kore-Edge-Nonce", n)
@@ -68,4 +69,20 @@ func (s *CredentialStore) VerifyDistribution(nonce, payload, proof string) bool 
 	want, _ := hex.DecodeString(sign(key, "kore-edge/distribution/reply/v1\n"+nonce+"\n"+payload))
 	got, e := hex.DecodeString(proof)
 	return e == nil && hmac.Equal(want, got)
+}
+
+// SRTSecret stays inside server-side transport code, never in API responses,
+// process arguments, versioned files or logs.
+func (s *CredentialStore) SRTSecret(partnerID string) (string, error) {
+	key, _, e := s.distributionSecret()
+	if e != nil {
+		return "", e
+	}
+	if len(partnerID) != 32 {
+		return "", ErrCredentials
+	}
+	if _, e = hex.DecodeString(partnerID); e != nil {
+		return "", ErrCredentials
+	}
+	return sign(key, "kore-edge/srt/encryption/v1\n"+partnerID)[:32], nil
 }

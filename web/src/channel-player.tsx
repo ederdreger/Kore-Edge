@@ -3,7 +3,7 @@ import {Play,X,RotateCw} from 'lucide-react';
 import {startPreview,type PreviewSource,type PreviewStatus} from './preview-engine';
 import './channel-player.css';
 
-export function ChannelPlayer({source,onClose}:{source:PreviewSource;onClose:()=>void}){
+export function ChannelPlayer({source,onClose,embedded=false}:{source:PreviewSource;onClose:()=>void;embedded?:boolean}){
  const video=useRef<HTMLVideoElement>(null),close=useRef<HTMLButtonElement>(null);
  const [attempt,setAttempt]=useState(0),[status,setStatus]=useState<PreviewStatus>({kind:'loading',text:'Carregando…'});
  useEffect(()=>{
@@ -14,7 +14,7 @@ export function ChannelPlayer({source,onClose}:{source:PreviewSource;onClose:()=
  },[onClose]);
  useEffect(()=>startPreview(video.current!,source,setStatus),[source,attempt]);
  const ended=['paused','error','ended'].includes(status.kind);
- return <aside className="channel-player" role="dialog" aria-label={`Mini player: ${source.name}`}>
+ return <aside className={`channel-player${embedded?' channel-player-embedded':''}`} role={embedded?'region':'dialog'} aria-label={`Mini player: ${source.name}`}>
   <header><div><strong><Play size={15}/> {source.name}</strong><small>{source.protocol==='hls'?'HLS':'HTTP MPEG-TS'} · prévia de até 5 minutos</small></div><button ref={close} className="icon-button" aria-label="Fechar mini player e parar transmissão" onClick={onClose}><X size={20}/></button></header>
   <video ref={video} controls playsInline muted aria-label={`Vídeo de ${source.name}`}/>
   <p role="status" data-state={status.kind}>{status.text}</p>

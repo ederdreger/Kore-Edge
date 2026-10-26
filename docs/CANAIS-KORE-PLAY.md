@@ -83,3 +83,8 @@ Nenhum protocolo garante ausência de congelamentos ou quadriculação. Antes da
 - Se o catálogo expirou, refaça a busca. Uma falha de consulta não renova permissões vencidas.
 
 As telas começam vazias; nenhum parceiro ou canal de demonstração é criado.
+# Recepção contínua e saídas
+
+Para SRT, início contínuo e distribuição UDP/HLS, siga o
+[novo passo a passo](DISTRIBUICAO-AO-VIVO.md). Cadastro e prévia HTTP/HLS sob
+demanda descritos abaixo continuam disponíveis.
