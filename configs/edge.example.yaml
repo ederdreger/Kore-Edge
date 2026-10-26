@@ -1,0 +1,51 @@
+# Review the explicit loopback address and port before local execution.
+version: 1
+mode: laboratory
+security:
+  mode: local_readonly
+# For direct mTLS, replace the block above (never add secrets here):
+# security:
+#   mode: mtls
+#   server_certificate: /absolute/private/security/server.pem
+#   server_private_key: /absolute/private/security/server-key.pem
+#   client_ca: /absolute/private/security/client-ca.pem
+#   policy: /absolute/private/security/policy.json
+#   audit_directory: /absolute/private/audit
+http:
+  listen: "127.0.0.1:18080"
+# Optional catalog trust: configure your reviewed PUBLIC key, never a private key.
+# catalog:
+#   partner_id: partner-lab
+#   public_key: <base64 Ed25519 public key>
+# Optional, requires catalog trust configured above. Starts no stream automatically.
+# stream:
+#   enabled: true
+# Optional: examples ONLY; discover interfaces and confirm all values first.
+# multicast:
+#   mode: dry_run
+#   outputs:
+#     - channel_id: test-pattern
+#       interface: lab0
+#       source_ip: 10.250.0.2
+#       group: 239.18.10.1
+#       port: 12000
+#       ttl: 1
+# Optional HLS: requires stream.enabled and catalog trust. Absolute paths only.
+# hls:
+#   enabled: true
+#   ffmpeg: /absolute/reviewed/path/to/ffmpeg
+#   ffprobe: /absolute/reviewed/path/to/ffprobe
+#   root: /absolute/dedicated/temporary/hls-directory
+# Optional enrollment. Runtime directory must be private and outside checkout.
+# provision:
+#   enabled: true
+#   edge_id: edge-lab
+#   directory: /absolute/private/laboratory/provision-runtime
+# Optional catalog synchronization: in-process mock ONLY, no outbound connection.
+# Requires catalog.partner_id/public_key; only synthetic sources are accepted.
+# integration:
+#   enabled: true
+#   mode: mock
+#   edge_id: edge-lab
+#   mock_catalog: /absolute/private/laboratory/signed-mock-catalog.json
+#   interval_seconds: 30

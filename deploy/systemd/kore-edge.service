@@ -1,0 +1,40 @@
+# Template only. Review paths and create the unprivileged account separately.
+# Do not install or start without explicit operational approval.
+[Unit]
+Description=Kore Edge laboratory core API
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=kore-edge
+Group=kore-edge
+ExecStart=/opt/kore-edge/bin/edge-agent -config /etc/kore-edge/edge.yaml
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictRealtime=true
+RestrictNamespaces=true
+SystemCallArchitectures=native
+RemoveIPC=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+MemoryMax=128M
+TasksMax=64
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

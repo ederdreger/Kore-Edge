@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "revision": 1,
+  "partner_id": "partner-lab",
+  "issued_at": "2026-10-25T12:00:00Z",
+  "expires_at": "2026-10-26T12:00:00Z",
+  "channels": [{"id":"test-pattern","name":"Synthetic test pattern","source":"synthetic://test-pattern","outputs":["udp","hls"]}],
+  "grants": [{"channel_id":"test-pattern","outputs":["udp","hls"]}]
+}

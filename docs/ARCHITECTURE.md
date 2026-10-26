@@ -1,0 +1,72 @@
+# Arquitetura técnica
+
+```text
+Kore Headend / Control Plane
+  | HTTPS (catálogo, configuração, telemetria)
+  | WireGuard: transporte privado de MPEG-TS UDP unicast
+  v
+Kore Edge Ubuntu 24.04
+  |- Edge Agent (Go): config, lifecycle, health, sync
+  |- Stream Engine (FFmpeg/TSDuck): ingest e fan-out
+  |- UDP multicast -> NIC/VLAN IPTV explícita -> moduladores / rede local
+  |- HLS -> Nginx -> players autorizados
+  |- Metrics + logs -> painel e matriz
+```
+
+## Contratos
+- Control plane não deve interromper o data plane em perda de conectividade; conservar última configuração válida.
+- Manifestos são versionados, validados e aplicados de modo atômico com rollback.
+- Por parceiro: identidade VPN, ACL, catálogo autorizado e quotas de banda/sessões.
+- Ingest por canal preferencialmente único; fan-out para UDP e HLS.
+- HLS exige checagem de codecs, armazenamento temporário, limpeza e proteção de acesso.
+- Multicast local usa interface de saída explícita e TTL limitado; não atravessa WireGuard diretamente.
+- Monitoramento inclui RX/TX físico e VPN, bitrate por canal, continuidade TS, TEI, PCR quando suportado.
+- Gestão e tráfego de mídia segregados por NIC ou VLAN quando disponível.
+
+## Laboratório
+Usar fonte sintética, loopback e rede isolada; os endereços 10.250.0.0/24 e 239.18.10.0/24 são apenas exemplos e requerem validação de conflitos.
+
+## Segurança implementada no laboratório — Fase 11
+
+O plano de controle permanece em loopback. O modo padrão permite somente leitura;
+mutações exigem HTTPS direto com mTLS/TLS 1.3 e RBAC por fingerprint cadastrado.
+A política é reavaliada por requisição e intenções administrativas são auditadas
+antes dos efeitos. Configuração de segurança inválida falha fechada; isso não
+altera o contrato de conservar o último catálogo válido do data plane.
+Segredos e auditoria ficam em diretórios privados externos ao checkout.
+Não há confiança implícita em proxies ou autenticação por headers encaminhados.
+Veja [Fase 11](modules/11-security.md) para funções, configuração, limites e testes.
+
+## Operação implementada no laboratório — Fase 12
+
+Releases são preparados offline, com binário e cópia exata da configuração em
+diretório privado. Seleção e rollback usam uma geração para impedir sobrescrita
+por comandos desatualizados. O agente lê a seleção somente na inicialização e
+confere integridade e correspondência com o executável iniciado. Não há hot-swap,
+download, reinício automático nem alteração de serviços do host. Uma falha na
+preparação não altera a seleção anterior nem chama o Stream Engine.
+O supervisor mantém orçamento finito de tentativas por canal, espera cancelável
+e backoff exponencial limitado a 30 segundos. Alertas locais identificam backoff,
+falha definitiva e perda de autorização. Veja [Fase 12](modules/12-operations.md).
+
+## Integração por mocks — Fase 13
+
+Um worker opcional consulta o contrato proposto de catálogo Kore-Player TV por
+transporte HTTP em memória, sem DNS, socket ou endereço de matriz configurável.
+O catálogo assinado existente aplica atualizações válidas de modo atômico e
+mantém o anterior em falhas, sem estender sua validade nem suas permissões.
+O worker não controla processos de mídia e para após três falhas consecutivas.
+Na presença dele, o PUT manual de catálogo é recusado para manter um único autor.
+O endpoint local de estado continua sob RBAC e não expõe credenciais ou paths.
+O contrato não foi validado contra uma API real; detalhes e limites estão na
+[Fase 13](modules/13-integration.md).
+
+## Homologação — Fase 14
+
+A suíte `tests/acceptance` exerce cenários limitados em pipes sintéticos e loopback:
+carga HTTP, omissões TS, recuperação de canal, limite de capacidade e restart de
+processos auxiliares próprios. Não altera rede nem serviços existentes. Resultados
+locais não certificam o data plane físico ou a compatibilidade com a matriz.
+O [checklist de homologação](acceptance/phase14-report.md) registra NO-GO enquanto
+existirem falhas de estabilidade, validações obrigatórias pendentes ou ausência
+de aprovação humana do laboratório. Nenhum teste aprova uma implantação sozinho.

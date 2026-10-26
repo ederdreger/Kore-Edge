@@ -1,0 +1,14 @@
+{
+  "before": null,
+  "desired": {
+    "interface": "wg-lab",
+    "address": "10.250.0.2/32",
+    "listen_port": 51820,
+    "peers": [{
+      "public_key": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
+      "endpoint": "127.0.0.1:51821",
+      "allowed_ips": ["10.250.0.1/32"],
+      "keepalive_seconds": 25
+    }]
+  }
+}

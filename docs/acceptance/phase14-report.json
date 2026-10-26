@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-25",
+  "environment": "windows-amd64-local-synthetic",
+  "go_version": "1.24.9",
+  "decision": "no-go",
+  "human_approval": false,
+  "evidence_kind": "manually_compiled_observed_test_results",
+  "acceptance_scenarios_passed": 4,
+  "http_load": { "requests": 512, "workers": 8, "errors": 0, "elapsed_ms": 16.4994, "longest_request_ms": 2.5003, "sustained_sla_validated": false },
+  "synthetic_ts_loss": { "generated": 40, "delivered": 38, "omitted": 2, "cc_gaps": 2, "network_impairment_tested": false },
+  "provisioning_concurrency": { "repetitions": 50, "competitors_per_repetition": 16, "failed_repetitions": 2, "status": "fail", "root_cause_identified": false },
+  "subsequent_full_go_suite": "pass",
+  "vet_windows_and_linux_cross_analysis": "pass",
+  "formatting": "pass",
+  "web_tests_passed": 11,
+  "web_build": "pass",
+  "synthetic_hls_av_integration": "pass",
+  "race_detector": "not_executed_cgo_unavailable",
+  "ubuntu_native_execution": "pending",
+  "physical_multicast_isolation": "pending",
+  "visual_dashboard_approval": "pending",
+  "real_service_update_rollback": "pending",
+  "production_or_headend_access": false,
+  "artifacts": [
+    { "path": "bin/edge-agent-phase14.exe", "sha256": "27e66f88186de340a9f945250c8e6e01a477327fff093fd3e28d5caa271f4e5d" },
+    { "path": "bin/edge-agent-phase14-linux-amd64", "sha256": "54884a7e8af8995b57ff68340001d66165dea10a446022cff2d4922523ae1aab" }
+  ]
+}

@@ -1,0 +1,40 @@
+# Used only by the opt-in laboratory installer. No network administration rights.
+[Unit]
+Description=Kore Edge laboratory agent (not production approved)
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=kore-edge
+Group=kore-edge
+WorkingDirectory=/opt/kore-edge
+ExecStart=/opt/kore-edge/current/edge-agent -config /etc/kore-edge/edge.yaml
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictNamespaces=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/kore-edge /var/cache/kore-edge
+MemoryMax=256M
+TasksMax=64
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

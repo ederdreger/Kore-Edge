@@ -1,0 +1,6 @@
+{
+  "edge_id": "edge-lab",
+  "partner_id": "partner-lab",
+  "catalog_public_key": "<TRUSTED_ED25519_PUBLIC_KEY_BASE64>",
+  "ttl_seconds": 300
+}

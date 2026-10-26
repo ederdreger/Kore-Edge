@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "clients": [
+    {
+      "id": "REPLACE_WITH_RANDOM_32_LOWERCASE_HEX",
+      "certificate_sha256": "REPLACE_WITH_REVIEWED_CERTIFICATE_DER_SHA256_64_LOWERCASE_HEX",
+      "role": "viewer",
+      "disabled": false
+    }
+  ]
+}

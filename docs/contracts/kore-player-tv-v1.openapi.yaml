@@ -1,0 +1,91 @@
+openapi: 3.0.3
+info:
+  title: Kore-Player TV - proposed catalog contract
+  version: 1.0.0-proposal
+  description: >-
+    Local proposal exercised by an in-process mock only. Not confirmed against
+    any Kore-Player TV deployment. No DNS, socket, redirect or remote service is
+    used by the implementation. Future remote authentication requires separate
+    review and is not implemented here.
+servers:
+  - url: https://mock.invalid
+    description: In-memory URI identifier; never resolved or connected
+paths:
+  /api/v1/edges/{edge_id}/catalog:
+    get:
+      operationId: getSignedEdgeCatalog
+      description: >-
+        Returns the partner-scoped signed envelope from phase 04. The expected
+        public key and partner are configured locally, never accepted from the
+        response. Total response body is limited to 262144 bytes. HTTP validators
+        do not extend the signed expiry. Actual remote identity binding to the
+        edge_id is pending provider contract and security review.
+      parameters:
+        - name: edge_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$'
+        - name: Accept
+          in: header
+          required: true
+          schema:
+            type: string
+            enum: [application/vnd.kore-edge.catalog.v1+json]
+        - name: If-None-Match
+          in: header
+          schema:
+            type: string
+            pattern: '^"[a-f0-9]{64}"$'
+      responses:
+        '200':
+          description: >-
+            Signed envelope; no Content-Encoding. Unknown fields, duplicate JSON
+            keys, extra documents, bad signature or invalid manifest are rejected.
+          headers:
+            ETag:
+              description: Quoted lowercase SHA-256 of the exact envelope bytes
+              schema:
+                type: string
+                pattern: '^"[a-f0-9]{64}"$'
+          content:
+            application/vnd.kore-edge.catalog.v1+json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '304':
+          description: >-
+            Exact ETag echo required. Accepted only with an existing, unexpired,
+            previously verified catalog. No reauthorization or expiry extension.
+          headers:
+            ETag:
+              schema:
+                type: string
+                pattern: '^"[a-f0-9]{64}"$'
+        '401':
+          description: Authentication unavailable or refused; failed attempt
+        '403':
+          description: Authorization refused; failed attempt
+        '503':
+          description: Mock unavailable; failed attempt, retain valid catalog
+components:
+  schemas:
+    Envelope:
+      type: object
+      additionalProperties: false
+      required: [payload, signature]
+      properties:
+        payload:
+          type: string
+          format: byte
+          description: >-
+            Base64 exact UTF-8 JSON manifest from internal/catalog: version 1,
+            positive uint64 revision, configured partner_id, issued_at/expires_at,
+            channels and grants. Only synthetic://<channel_id> sources, udp/hls
+            outputs, up to 512 channels/grants, validity at most 24 hours.
+        signature:
+          type: string
+          format: byte
+          description: >-
+            Base64 Ed25519 signature of bytes kore-edge/catalog/v1 followed by
+            newline and the exact decoded payload. Key never travels in envelope.

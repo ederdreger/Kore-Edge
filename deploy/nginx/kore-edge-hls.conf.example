@@ -1,0 +1,23 @@
+# REVIEW TEMPLATE ONLY. Replace placeholders with discovered/approved values.
+# Not installed, no nginx/service changes are authorized by this file.
+server {
+    listen 127.0.0.1:__APPROVED_HLS_PORT__;
+    server_name localhost;
+    access_log off;
+    error_log stderr crit;
+    client_max_body_size 1k;
+    # Proxy every media request through the Edge permission check. No alias/root
+    # directly exposes the temporary storage directory.
+    location ~ ^/(hls/|player/|player-assets/) {
+        limit_except GET { deny all; }
+        proxy_pass http://127.0.0.1:__APPROVED_AGENT_PORT__;
+        proxy_connect_timeout 2s;
+        proxy_read_timeout 5s;
+        proxy_send_timeout 5s;
+        proxy_buffering off;
+        proxy_cache off;
+        add_header Cache-Control "no-store" always;
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+    location / { return 404; }
+}

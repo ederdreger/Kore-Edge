@@ -1,0 +1,8 @@
+{
+  "channel_id": "test-pattern",
+  "interface": "lab0",
+  "source_ip": "10.250.0.2",
+  "group": "239.18.10.1",
+  "port": 12000,
+  "ttl": 1
+}

@@ -1,0 +1,10 @@
+Kore Edge dashboard runtime dependencies
+
+react 19.3.1 — MIT
+https://react.dev/
+
+react-dom 19.3.1 — MIT
+https://react.dev/
+
+lucide-react 1.61.0 — ISC
+https://lucide.dev
