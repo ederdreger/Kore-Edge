@@ -89,6 +89,9 @@ func TestAuthenticatedHTTPSGateway(t *testing.T) {
 			t.Fatal("fixture write")
 		}
 	}
+	if tool := os.Getenv("KORE_EDGE_HTPASSWD"); tool != "" {
+		writeBcryptFixture(t, tool, filepath.Join(dir, "htpasswd"), "synthetic-password")
+	}
 	listener, e := net.Listen("tcp", "127.0.0.1:0")
 	if e != nil {
 		t.Fatal(e)
@@ -200,6 +203,36 @@ func TestAuthenticatedHTTPSGateway(t *testing.T) {
 		response.Body.Close()
 		if response.StatusCode != 200 {
 			t.Fatal("dashboard burst was throttled", response.StatusCode)
+		}
+	}
+}
+
+func writeBcryptFixture(t *testing.T, tool, path, password string) {
+	t.Helper()
+	command := exec.Command(tool, "-iBc", "-C", "10", path, "viewer")
+	command.Stdin = strings.NewReader(password + "\n")
+	if command.Run() != nil {
+		t.Fatal("bcrypt credential generation failed")
+	}
+	verify := exec.Command(tool, "-vi", path, "viewer")
+	verify.Stdin = strings.NewReader(password + "\n")
+	if verify.Run() != nil {
+		t.Fatal("bcrypt credential verification failed")
+	}
+}
+
+func TestBcryptCredentialVerification(t *testing.T) {
+	tool := os.Getenv("KORE_EDGE_HTPASSWD")
+	if tool == "" {
+		t.Skip("set KORE_EDGE_HTPASSWD for native bcrypt checks")
+	}
+	path := filepath.Join(t.TempDir(), "htpasswd")
+	for _, password := range []string{"synthetic-password", `Synthetic $! back\slash "quote" 123`} {
+		writeBcryptFixture(t, tool, path, password)
+		wrong := exec.Command(tool, "-vi", path, "viewer")
+		wrong.Stdin = strings.NewReader("incorrect-password\n")
+		if wrong.Run() == nil {
+			t.Fatal("wrong password accepted")
 		}
 	}
 }

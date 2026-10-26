@@ -152,6 +152,25 @@ continuam interrompendo o reparo; não foi adicionado um ignore geral de erros.
 
 ### Acesso HTTPS
 
+### Se o navegador não aceitar a senha
+
+Dentro da pasta Kore-Edge, execute:
+
+```sh
+git pull --ff-only
+sudo bash scripts/panel-access.sh
+```
+
+O assistente mostra o usuário realmente cadastrado (que pode ser diferente de
+root ou do usuário Ubuntu). Escolha **1** para conferir uma senha sem alterar nada,
+ou **2** para cadastrar uma nova senha, com confirmação e digitação oculta.
+A redefinição preserva o certificado, domínio, porta e serviços e faz backup privado
+da credencial anterior. Não precisa reinstalar nem reiniciar o Nginx.
+
+Depois abra uma janela **privativa/anônima** do navegador e use o usuário mostrado
+com a senha conferida ou redefinida. Isso evita reutilizar credenciais antigas
+guardadas pelo navegador. Não envie sua senha nem o arquivo htpasswd em mensagens.
+
 Se escolheu iniciar, abra a URL HTTPS mostrada no seu computador. Digite o usuário
 e a senha cadastrados quando o navegador solicitar. Não precisa de túnel SSH.
 

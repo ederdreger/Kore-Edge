@@ -180,6 +180,26 @@ Erro ao limpar uma falha existente continua fatal; não há supressão geral de
 erros systemd. Isso evita abortar a primeira inicialização por ausência de um
 estado failed anterior.
 
+### Diagnóstico e recuperação da senha do navegador
+
+`sudo bash scripts/panel-access.sh` verifica a referência de autenticação do
+gateway e identifica o único usuário cadastrado, sem mostrar o hash. Requer TTY;
+não recebe senha por argv/ambiente. Conferência usa htpasswd -vi somente leitura.
+Redefinição exige escolha e confirmação explícitas; gera bcrypt custo 10 em
+temporário privado, verifica-o antes de publicar, salva backup 0600 e substitui
+atomicamente o arquivo como kore-edge:600. Não reinicia serviços nem modifica a
+API. Falha antes do rename deixa o arquivo anterior intacto.
+
+Para rollback autorizado da senha: selecionar o backup privado mostrado, conferir
+que pertence à mesma operação e restaurá-lo no mesmo diretório com dono kore-edge
+e modo 0600, por troca atômica. Backups contêm hashes e devem permanecer privados;
+nunca publicar em Git/logs. O navegador pode reter Basic Auth antigo; testar em
+janela privativa antes de concluir que o cadastro está incorreto.
+
+O CI valida agora o formato bcrypt real do instalador com apache2-utils e Nginx
+extraídos em diretório temporário, sem instalação de pacotes ou serviços no runner.
+Senha correta/incorreta e caracteres especiais são exercitados com dados sintéticos.
+
 Certificado autoassinado com SAN de domínio/IP, chave e bcrypt ficam em
 `/etc/kore-edge/gateway` (0700, arquivos 0600, dono kore-edge). Senha é pedida no
 TTY com confirmação, nunca em argv, ambiente exportado ou logs. Access/error logs

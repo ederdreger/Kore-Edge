@@ -22,9 +22,11 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/kore-nginx"
           cd "$RUNNER_TEMP/kore-nginx"
-          apt-get download nginx
-          dpkg-deb -x nginx_*.deb root
+          apt-get download nginx apache2-utils libapr1t64 libaprutil1t64
+          for package in ./*.deb; do dpkg-deb -x "$package" root; done
           echo "KORE_EDGE_NGINX=$PWD/root/usr/sbin/nginx" >> "$GITHUB_ENV"
+          echo "KORE_EDGE_HTPASSWD=$PWD/root/usr/bin/htpasswd" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$PWD/root/usr/lib/x86_64-linux-gnu" >> "$GITHUB_ENV"
       - name: Tests with the installer's restrictive umask
         run: |
           umask 077
