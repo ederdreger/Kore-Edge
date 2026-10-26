@@ -55,6 +55,13 @@ conseguirá decodificar o conteúdo. O player ajuda a fazer essa conferência vi
 O vídeo usa sua sessão autenticada do Edge e as permissões do parceiro. O player
 não divulga a URL original nem fornece um link público para reprodução externa.
 
+## Área de trabalho e telas pequenas
+
+As telas de canais do Edge e parceiros do Kore Play ocupam a largura disponível
+ao lado do menu. Mensagens de teste, nomes longos e caminhos de mídia quebram
+linha dentro das células. Em telas pequenas, cada canal aparece como um cartão
+com seus campos e ações, evitando uma tabela larga que esconda os controles.
+
 Buscar a lista não inicia todos os canais. **Entrada de mídia autenticada** mostra o caminho protegido pela sessão do Edge, sem revelar a origem da central. Este módulo não conecta o catálogo real ao Stream Engine sintético nem cria saídas multicast automaticamente.
 
 ## Protocolos e qualidade
