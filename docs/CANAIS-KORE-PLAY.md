@@ -4,11 +4,17 @@
 
 1. Confirme que o Edge já está cadastrado e conectado em **Canais → WireGuard Kore Edge**.
 2. Abra **Canais → Parceiros Kore Edge**.
-3. Escolha **Novo parceiro**, informe o nome e selecione o servidor Edge correspondente.
-4. Marque os canais desejados. A coluna **Protocolo de entrega** mostra o protocolo da origem cadastrada.
+3. Escolha **Novo parceiro**, informe o nome e selecione o servidor Edge correspondente. Confirme com a senha do Kore Play e clique em **Salvar parceiro e selecionar canais**.
+4. A seleção de canais abre automaticamente. Marque os canais desejados e confira **Protocolo a enviar** em cada linha. Use a busca, o filtro HTTP MPEG-TS/HLS e **Selecionar canais desta busca** para marcar em lote. Somente protocolos existentes na origem são oferecidos; quando há apenas um, ele vem selecionado.
 5. Informe a senha administrativa **do Kore Play**, confirme a seleção e clique em **Publicar canais para este parceiro**.
 
 Para alterar a lista, selecione o parceiro existente. Desmarcar um canal retira sua autorização. Desabilitar o parceiro bloqueia todos os seus canais, inclusive entregas em andamento.
+
+Se o parceiro já está salvo sem canais, clique em **Selecionar canais e protocolos
+de [nome]** no cartão dele. Não precisa cadastrar novamente. O atalho **Selecionar
+canais para este Edge** na tela WireGuard também abre o parceiro correspondente.
+Use **Editar cadastro do parceiro** para alterar nome ou bloqueio e **Selecionar
+canais e protocolos** para voltar à lista.
 
 ## 2. No Edge: buscar a lista
 

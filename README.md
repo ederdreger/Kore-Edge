@@ -3,7 +3,9 @@
 ## Canais autorizados do Kore Play
 
 No Kore Play, **Canais → Parceiros Kore Edge** permite escolher o parceiro e
-publicar seus canais. No Edge, **Canais → Canais do Kore Play** busca a lista,
+salvar o parceiro e abrir automaticamente a seleção de canais e protocolos.
+Parceiros existentes têm botão explícito para editar a seleção e publicá-la.
+No Edge, **Canais → Canais do Kore Play** busca a lista,
 mostra HTTP MPEG-TS/HLS disponíveis na origem e oferece teste curto de sinal.
 Sem canais de demonstração, conversão automática ou liberação entre parceiros.
 Veja o [passo a passo](docs/CANAIS-KORE-PLAY.md) e o
