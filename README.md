@@ -30,6 +30,7 @@ Se uma tentativa falhou nos testes após instalar pacotes, consulte a
 Para erro Nginx `mkdir() /var/lib/nginx/fastcgi ... Permission denied` após os
 testes, existe um [reparo específico do gateway](docs/INSTALACAO-SIMPLES.md),
 preservando senha, certificado e configuração já instalados.
+O reparador também trata a primeira inicialização de unidades ainda não carregadas.
 
 Veja o [passo a passo simples](docs/INSTALACAO-SIMPLES.md).
 [Documentação técnica e rollback](docs/INSTALL.md) para operadores avançados.

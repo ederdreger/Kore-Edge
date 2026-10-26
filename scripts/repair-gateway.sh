@@ -86,7 +86,7 @@ validated=1
 systemctl daemon-reload
 systemd-analyze verify /etc/systemd/system/kore-edge.service /etc/systemd/system/kore-edge-gateway.service
 if ((start)); then
-  systemctl reset-failed kore-edge.service kore-edge-gateway.service
+  reset_kore_failed_units
   systemctl start kore-edge.service || { systemctl stop kore-edge.service; die 'Core nao iniciou; configuracao preservada.'; }
   ready=0
   for ((attempt=0;attempt<20;attempt++)); do

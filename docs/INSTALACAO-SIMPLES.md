@@ -136,6 +136,20 @@ O plano de preflight, backup e rollback é o mesmo do reparo de cache acima; a
 validação temporária tem timeout de 20 segundos e é coletada após terminar.
 Esse caminho não executa o gateway como root nem muda permissões globais do Linux.
 
+### Se apareceu `Failed to reset failed state ... Unit ... not loaded`
+
+A configuração já foi validada, mas uma versão do reparador tentava limpar o
+estado de falha até de serviços que nunca foram carregados. Essa etapa agora só
+limpa unidades realmente em estado failed. Atualize e repita o reparo:
+
+```sh
+git pull --ff-only
+sudo bash scripts/repair-gateway.sh --apply --start
+```
+
+Os dados existentes são preservados. Falhas reais de início ou limpeza de estado
+continuam interrompendo o reparo; não foi adicionado um ignore geral de erros.
+
 ### Acesso HTTPS
 
 Se escolheu iniciar, abra a URL HTTPS mostrada no seu computador. Digite o usuário

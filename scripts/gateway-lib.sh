@@ -61,6 +61,17 @@ validate_gateway_as_service() {
     --property=TimeoutStartSec=20s \
     /usr/sbin/nginx -t -q -c "$configuration"
 }
+
+# Fresh units can exist on disk without a loaded failed-state entry. Reset only
+# failures that actually exist; do not make first startup depend on reset-failed.
+reset_kore_failed_units() {
+  local unit
+  for unit in kore-edge.service kore-edge-gateway.service; do
+    if systemctl is-failed --quiet "$unit"; then
+      systemctl reset-failed "$unit" || return 1
+    fi
+  done
+}
 gateway_url() {
   local host=$1 port=$2
   if [[ $host == *:* ]]; then host="[$host]"; fi

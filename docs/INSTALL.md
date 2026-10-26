@@ -173,6 +173,13 @@ Os comandos de preflight/rollback do reparo continuam válidos. Falha de valida�
 restaura a configuração original; não relaxa sysctl, não usa chmod amplo e não
 transforma o daemon em root. O erro de bind não deve ser atribuído a IP privado.
 
+Na inicialização após reparo, `reset-failed` só é chamado individualmente se
+`systemctl is-failed --quiet` confirmar uma falha da unidade. Unidades novas ou
+ainda não carregadas seguem diretamente para start, que as carrega normalmente.
+Erro ao limpar uma falha existente continua fatal; não há supressão geral de
+erros systemd. Isso evita abortar a primeira inicialização por ausência de um
+estado failed anterior.
+
 Certificado autoassinado com SAN de domínio/IP, chave e bcrypt ficam em
 `/etc/kore-edge/gateway` (0700, arquivos 0600, dono kore-edge). Senha é pedida no
 TTY com confirmação, nunca em argv, ambiente exportado ou logs. Access/error logs

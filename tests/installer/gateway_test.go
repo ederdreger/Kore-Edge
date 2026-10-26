@@ -262,3 +262,33 @@ func TestGatewayValidatorMatchesServiceUserAndBindCapability(t *testing.T) {
 		}
 	}
 }
+
+func TestFirstStartupResetsOnlyExistingFailedUnits(t *testing.T) {
+	for _, tc := range []struct {
+		name                               string
+		failed, resetError, expectedResets int
+		success                            bool
+	}{{"fresh unloaded units", 0, 0, 0, true}, {"one failed unit", 1, 0, 1, true}, {"both failed units", 2, 0, 2, true}, {"real reset failure", 1, 1, 1, false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			command := exec.Command(bash(t), "-c", `source ../../scripts/gateway-lib.sh
+failed=$1; reset_error=$2
+systemctl(){
+  case "$1" in
+    is-failed)
+      if [[ $failed == 2 || $failed == 1 && $3 == kore-edge.service ]]; then return 0; fi
+      return 4 ;;
+    reset-failed) printf 'reset:%s\n' "$2"; return "$reset_error" ;;
+    *) return 99 ;;
+  esac
+}
+reset_kore_failed_units && printf 'ready-to-start\n'`, "startup", strconv.Itoa(tc.failed), strconv.Itoa(tc.resetError))
+			out, e := command.CombinedOutput()
+			if (e == nil) != tc.success || strings.Count(string(out), "reset:") != tc.expectedResets {
+				t.Fatal("failed-state handling mismatch", string(out), e)
+			}
+			if tc.success && !strings.Contains(string(out), "ready-to-start") {
+				t.Fatal("fresh startup blocked")
+			}
+		})
+	}
+}
