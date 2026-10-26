@@ -29,7 +29,7 @@ func TestGatewayHostValidationAndRendering(t *testing.T) {
 	for _, tc := range []struct {
 		host  string
 		valid bool
-	}{{"panel.example.com", true}, {"203.0.113.10", true}, {"2001:db8::10", true}, {"2001:db8:0:0:0:0:0:1", true}, {"http://bad/", false}, {"domain.test;injection", false}, {"example..com", false}, {"-bad.example", false}, {"999.1.1.1", false}, {"127.0.0.1", false}, {"0.0.0.0", false}, {"::1", false}, {"::", false}, {"1::2::3", false}, {"2001:db8:", false}, {"localhost", false}} {
+	}{{"panel.example.com", true}, {"203.0.113.10", true}, {"2001:db8::10", true}, {"2001:db8:0:0:0:0:0:1", true}, {"http://bad/", false}, {"domain.test;injection", false}, {"example..com", false}, {"-bad.example", false}, {"999.1.1.1", false}, {"127.0.0.1", false}, {"0.0.0.0", false}, {"::1", false}, {"::", false}, {":::", false}, {"1::2::3", false}, {"2001:db8:", false}, {"localhost", false}} {
 		command := exec.Command(bash(t), "-c", `source ../../scripts/gateway-lib.sh; valid_public_host "$1"`, "test-host", tc.host)
 		if (command.Run() == nil) != tc.valid {
 			t.Fatalf("host validation mismatch: %s", tc.host)
@@ -46,6 +46,7 @@ func TestGatewayHostValidationAndRendering(t *testing.T) {
 			t.Fatal("gateway missing protection", required)
 		}
 	}
+
 }
 
 // Opt-in test uses an extracted Nginx binary and private temporary files. No
@@ -174,6 +175,20 @@ func TestAuthenticatedHTTPSGateway(t *testing.T) {
 		response.Body.Close()
 		if response.StatusCode != tc.status {
 			t.Fatal(fmt.Sprintf("gateway %s %s status=%d expected=%d", tc.method, tc.path, response.StatusCode, tc.status))
+		}
+	}
+	// The dashboard loads assets and several APIs together; its initial burst
+	// must not be mistaken for sustained abuse by the gateway rate limiter.
+	for i := 0; i < 16; i++ {
+		request, _ := http.NewRequest("GET", base+"/healthz", nil)
+		request.SetBasicAuth("viewer", "synthetic-password")
+		response, e := client.Do(request)
+		if e != nil {
+			t.Fatal("dashboard burst failed")
+		}
+		response.Body.Close()
+		if response.StatusCode != 200 {
+			t.Fatal("dashboard burst was throttled", response.StatusCode)
 		}
 	}
 }

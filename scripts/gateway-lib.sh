@@ -4,7 +4,7 @@ valid_public_host() {
   local host=$1 label octet part rest count=0 compressed=0
   [[ -n $host && ${#host} -le 253 ]] || return 1
   if [[ $host == *:* ]]; then
-    [[ $host =~ ^[a-fA-F0-9:]+$ && $host != :: && $host != ::1 ]] || return 1
+    [[ $host =~ ^[a-fA-F0-9:]+$ && $host != *:::* && $host != :: && $host != ::1 ]] || return 1
     if [[ $host == *::* ]]; then
       compressed=1; rest=${host#*::}; [[ $rest != *::* ]] || return 1
       host=${host/::/:}
@@ -52,7 +52,7 @@ http {
   server_tokens off;
   client_body_temp_path /var/cache/kore-edge/gateway/client;
   proxy_temp_path /var/cache/kore-edge/gateway/proxy;
-  limit_req_zone \$binary_remote_addr zone=login:1m rate=5r/s;
+  limit_req_zone \$binary_remote_addr zone=login:1m rate=10r/s;
   server {
     listen 0.0.0.0:$port ssl;
 EOF
@@ -72,7 +72,7 @@ EOF
     add_header X-Content-Type-Options nosniff always;
     add_header X-Frame-Options DENY always;
     location / {
-      limit_req zone=login burst=10 nodelay;
+      limit_req zone=login burst=30 nodelay;
       limit_except GET HEAD { deny all; }
       proxy_connect_timeout 3s;
       proxy_read_timeout 10s;

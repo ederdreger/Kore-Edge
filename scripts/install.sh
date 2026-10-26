@@ -215,7 +215,7 @@ if [[ -n $public_host ]]; then
   if [[ $public_host == *:* || $public_host =~ ^[0-9.]+$ ]]; then san="IP:$public_host"; fi
   openssl req -x509 -newkey rsa:3072 -nodes -sha256 -days 365 -subj '/CN=Kore Edge laboratory' \
     -addext "subjectAltName=$san" -keyout /etc/kore-edge/gateway/server.key -out /etc/kore-edge/gateway/server.crt 2>/dev/null
-  printf '%s\n' "$gateway_password" | htpasswd -iBc /etc/kore-edge/gateway/htpasswd "$gateway_user" >/dev/null 2>&1
+  printf '%s\n' "$gateway_password" | htpasswd -iBc -C 10 /etc/kore-edge/gateway/htpasswd "$gateway_user" >/dev/null 2>&1
   unset gateway_password
   ipv6=0; if [[ -r /proc/net/if_inet6 ]] && grep -q . /proc/net/if_inet6; then ipv6=1; fi
   if [[ $public_host == *:* && $ipv6 == 0 ]]; then die 'IPv6 escolhido, mas indisponivel no host.'; fi
