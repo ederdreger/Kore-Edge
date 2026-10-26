@@ -17,6 +17,7 @@ import (
 	"kore-edge/internal/catalog"
 	"kore-edge/internal/config"
 	"kore-edge/internal/diagnostics"
+	"kore-edge/internal/edgecatalog"
 	"kore-edge/internal/hls"
 	"kore-edge/internal/integration"
 	"kore-edge/internal/monitoring"
@@ -171,7 +172,17 @@ func servePanel(ctx context.Context, ln net.Listener, store *catalog.Store, engi
 	monitorDone := make(chan struct{})
 	go func() { defer close(monitorDone); observer.Run(monitorCtx) }()
 	defer func() { stopMonitor(); <-monitorDone }()
-	a := &api.API{WireGuardCredentials: wgCredentials, Mode: mode, Accounts: users, PublicOrigin: origin, Integration: synchronizer, Security: guard, Catalog: store, Streams: engine, HLS: manager, Monitoring: observer, Provision: registry, ProvisionEdgeID: edgeID}
+	var partnerCatalog *edgecatalog.Service
+	if users != nil && wgCredentials != nil {
+		partnerCatalog, _ = edgecatalog.New(filepath.Join(users.Directory(), "kore-play"), wgCredentials)
+		if partnerCatalog != nil {
+			syncCtx, stop := context.WithCancel(ctx)
+			done := make(chan struct{})
+			go func() { defer close(done); partnerCatalog.Run(syncCtx) }()
+			defer func() { stop(); <-done }()
+		}
+	}
+	a := &api.API{PartnerCatalog: partnerCatalog, WireGuardCredentials: wgCredentials, Mode: mode, Accounts: users, PublicOrigin: origin, Integration: synchronizer, Security: guard, Catalog: store, Streams: engine, HLS: manager, Monitoring: observer, Provision: registry, ProvisionEdgeID: edgeID}
 	server := a.Server()
 	server.TLSConfig = guard.TLSConfig()
 	server.ErrorLog = log.New(io.Discard, "", 0)

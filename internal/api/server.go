@@ -6,6 +6,7 @@ import (
 	"kore-edge/internal/accounts"
 	"kore-edge/internal/catalog"
 	"kore-edge/internal/diagnostics"
+	"kore-edge/internal/edgecatalog"
 	"kore-edge/internal/hls"
 	"kore-edge/internal/integration"
 	"kore-edge/internal/monitoring"
@@ -22,6 +23,7 @@ import (
 )
 
 type API struct {
+	PartnerCatalog        *edgecatalog.Service
 	WireGuardCredentials  *wireguard.CredentialStore
 	WireGuardBridgeSocket string
 	Mode                  string
@@ -49,6 +51,10 @@ func (a *API) Handler() http.Handler {
 	handler := guard.Wrap(a.routes())
 	if a.Accounts != nil {
 		panel := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/api/v1/kore-play/") {
+				a.partnerCatalog(w, r)
+				return
+			}
 			if r.URL.Path == "/api/v1/wireguard/setup" || r.URL.Path == "/api/v1/wireguard/setup/identity" || r.URL.Path == "/api/v1/wireguard/setup/peer" || strings.HasPrefix(r.URL.Path, "/api/v1/wireguard/setup/connection/") {
 				a.wireGuardSetup(w, r)
 				return

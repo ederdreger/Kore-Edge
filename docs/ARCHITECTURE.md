@@ -1,5 +1,15 @@
 # Arquitetura técnica
 
+## Distribuição autorizada Kore Play → Edge
+
+O módulo real `edgecatalog` consulta pelo túnel um catálogo por parceiro,
+autenticado pela identidade X25519 existente e HTTPS com certificado validado.
+A central conserva as origens e autoriza cada solicitação de mídia. O Edge
+expõe apenas entradas locais autenticadas HTTP MPEG-TS/HLS já existentes na
+origem; não conecta este catálogo ao Stream Engine sintético nem cria saídas
+multicast. Validade, revogação e testes amostrais são explícitos no painel.
+Veja [contrato e limites](modules/18-partner-channels.md).
+
 ```text
 Kore Headend / Control Plane
   | HTTPS (catálogo, configuração, telemetria)

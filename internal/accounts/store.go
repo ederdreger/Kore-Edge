@@ -374,3 +374,6 @@ func (s *Store) change(actor User, actorPassword, id, username, password, role s
 	}
 	return s.save(next, actor.ID, actor.Role, "account_change")
 }
+
+// Directory is the immutable private storage path used by optional local modules.
+func (s *Store) Directory() string { return s.directory }
