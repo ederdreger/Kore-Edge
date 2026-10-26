@@ -201,7 +201,7 @@ mkdir "$work/src" "$work/home" "$work/out"
 chown -R "$build_user" "$work"
 runuser -u "$build_user" -- tar -xf "$work/source.tar" -C "$work/src"
 runuser -u "$build_user" -- env HOME="$work/home" GOCACHE="$work/cache" GOPATH="$work/gopath" CGO_ENABLED=1 \
-  bash -c 'set -euo pipefail; cd "$1"; go mod download; go mod verify; go vet ./...; go test ./... -count=1 -timeout=120s; go test -race ./... -count=1 -timeout=180s; for name in edge-agent edge-ops edge-provision edge-users; do go build -trimpath -o "$2/$name" "./cmd/$name"; done' _ "$work/src" "$work/out"
+  bash -c 'set -euo pipefail; cd "$1"; go mod download; go mod verify; go vet ./...; go test ./... -count=1 -timeout=120s; go test -race ./... -count=1 -timeout=180s; for name in edge-agent edge-ops edge-provision edge-users edge-wg-bridge; do go build -trimpath -o "$2/$name" "./cmd/$name"; done' _ "$work/src" "$work/out"
 
 if getent passwd kore-edge >/dev/null; then
   IFS=: read -r _ _ service_uid _ _ service_home service_shell < <(getent passwd kore-edge)
@@ -217,7 +217,7 @@ install -d -o root -g kore-edge -m 0750 /etc/kore-edge
 install -d -o kore-edge -g kore-edge -m 0700 /var/lib/kore-edge /var/cache/kore-edge
 release="/opt/kore-edge/releases/$revision"
 install -d -o root -g root -m 0755 "$release"
-for name in edge-agent edge-ops edge-provision edge-users; do install -o root -g root -m 0755 "$work/out/$name" "$release/$name"; done
+for name in edge-agent edge-ops edge-provision edge-users edge-wg-bridge; do install -o root -g root -m 0755 "$work/out/$name" "$release/$name"; done
 install -o root -g kore-edge -m 0640 /dev/null /etc/kore-edge/edge.yaml
 installation_mode=laboratory; if ((production)); then installation_mode=production; fi
 cat >/etc/kore-edge/edge.yaml <<EOF
@@ -266,7 +266,7 @@ if [[ -n $public_host ]]; then systemd-analyze verify /etc/systemd/system/kore-e
 printf 'revision=%s\nprofile=%s\nlisten=%s\n' "$revision" "$profile" "$listen" >/opt/kore-edge/install-manifest
 if [[ -n $public_host ]]; then printf 'public_host=%s\npublic_port=%s\ngateway_user=%s\n' "$public_host" "$public_port" "$gateway_user" >>/opt/kore-edge/install-manifest; fi
 chmod 0600 /opt/kore-edge/install-manifest
-(cd /opt/kore-edge && sha256sum "releases/$revision/edge-agent" "releases/$revision/edge-ops" "releases/$revision/edge-provision" "releases/$revision/edge-users" /etc/kore-edge/edge.yaml /etc/systemd/system/kore-edge.service >installed.sha256)
+(cd /opt/kore-edge && sha256sum "releases/$revision/edge-agent" "releases/$revision/edge-ops" "releases/$revision/edge-provision" "releases/$revision/edge-users" "releases/$revision/edge-wg-bridge" /etc/kore-edge/edge.yaml /etc/systemd/system/kore-edge.service >installed.sha256)
 if [[ -n $public_host ]]; then sha256sum /etc/kore-edge/gateway/nginx.conf /etc/systemd/system/kore-edge-gateway.service >>/opt/kore-edge/installed.sha256; fi
 if ((start)); then
   systemctl start kore-edge.service

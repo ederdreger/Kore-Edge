@@ -266,3 +266,10 @@ Servidor físico Ubuntu 24.04 em laboratório isolado. Distribuição UDP multic
 
 ## Primeiro prompt ao Codex
 Leia `AGENTS.md`, `README.md`, `docs/ARCHITECTURE.md` e `docs/modules/01-core.md`. Implemente apenas a Fase 01 em modo laboratório, sem comandos privilegiados ou alterações no host. Crie estrutura de monorepo, API Go com `/healthz` e `/readyz`, configuração de exemplo, testes unitários, Makefile e documentação para execução local. Antes de codificar, apresente plano e arquivos que serão criados.
+
+## Conexão WireGuard automática (opcional)
+
+O assistente sincroniza peers por código temporário e permite revisar/ativar o
+túnel real com auxiliar local restrito. Salvar dados continua apenas preparando
+a configuração. A cópia de dados públicos confirma sucesso ou orienta Ctrl+C.
+Veja [habilitação, pré-verificação, aplicação e rollback](docs/modules/17-wireguard-connection.md).
