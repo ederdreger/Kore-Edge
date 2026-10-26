@@ -26,6 +26,9 @@ func TestEmbeddedDashboard(t *testing.T) {
 		if tc.code == 200 && w.Header().Get("Content-Security-Policy") == "" {
 			t.Fatal("missing CSP")
 		}
+		if tc.code == 200 && (!strings.Contains(w.Header().Get("Content-Security-Policy"), "media-src 'self' blob:") || !strings.Contains(w.Header().Get("Content-Security-Policy"), "connect-src 'self';")) {
+			t.Fatal("preview media must remain restricted to the local origin")
+		}
 	}
 	assets, e := fs.ReadDir(files, "dist/assets")
 	if e != nil {

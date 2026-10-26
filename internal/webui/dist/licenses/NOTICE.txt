@@ -8,3 +8,14 @@ https://react.dev/
 
 lucide-react 1.61.0 — ISC
 https://lucide.dev
+
+hls.js 1.7.3 — Apache-2.0
+https://github.com/video-dev/hls.js
+
+mpegts.js 1.8.2 — Apache-2.0
+
+
+es6-promise 4.2.8 — MIT
+https://github.com/stefanpenner/es6-promise
+
+events 3.3.0 — MIT

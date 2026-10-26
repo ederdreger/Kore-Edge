@@ -10,7 +10,9 @@
     "check": "tsc --noEmit"
   },
   "dependencies": {
+    "hls.js": "1.7.3",
     "lucide-react": "1.61.0",
+    "mpegts.js": "1.8.2",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
