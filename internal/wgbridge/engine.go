@@ -36,14 +36,53 @@ type Plan struct {
 	Applied       bool                    `json:"applied"`
 }
 type Status struct {
-	Stage           string `json:"stage"`
-	Job             string `json:"job"`
-	Error           string `json:"error"`
-	Applied         bool   `json:"applied"`
-	DesiredDigest   string `json:"desired_digest"`
-	HandshakeRecent bool   `json:"handshake_recent"`
-	CanRollback     bool   `json:"can_rollback"`
+	Stage                string       `json:"stage"`
+	Job                  string       `json:"job"`
+	Error                string       `json:"error"`
+	Applied              bool         `json:"applied"`
+	DesiredDigest        string       `json:"desired_digest"`
+	HandshakeRecent      bool         `json:"handshake_recent"`
+	CanRollback          bool         `json:"can_rollback"`
+	CheckedAt            string       `json:"checked_at"`
+	ObservationAvailable bool         `json:"observation_available"`
+	Peers                []PeerStatus `json:"peers"`
 }
+
+type PeerStatus struct {
+	PublicKey     string `json:"public_key"`
+	LastHandshake int64  `json:"last_handshake"`
+	Online        bool   `json:"online"`
+}
+
+// Only the configured keys count as evidence. Missing, duplicate or malformed
+// observations are unavailable, never fabricated offline/online measurements.
+func observeHandshakes(peers []wireguard.Peer, raw string, now int64) ([]PeerStatus, bool) {
+	stamps := map[string]int64{}
+	for _, line := range strings.Split(strings.TrimSpace(raw), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 {
+			return nil, false
+		}
+		stamp, err := strconv.ParseInt(fields[1], 10, 64)
+		if _, duplicate := stamps[fields[0]]; err != nil || stamp < 0 || duplicate {
+			return nil, false
+		}
+		stamps[fields[0]] = stamp
+	}
+	if len(stamps) != len(peers) {
+		return nil, false
+	}
+	out := make([]PeerStatus, 0, len(peers))
+	for _, peer := range peers {
+		stamp, ok := stamps[peer.PublicKey]
+		if !ok {
+			return nil, false
+		}
+		out = append(out, PeerStatus{PublicKey: peer.PublicKey, LastHandshake: stamp, Online: stamp > 0 && now >= stamp && now-stamp < 180})
+	}
+	return out, true
+}
+
 type journal struct {
 	Current  *wireguard.ManagedConfig `json:"current"`
 	Previous *wireguard.ManagedConfig `json:"previous"`
@@ -639,6 +678,10 @@ func (e *Engine) Apply(digest string) (Status, error) {
 func (e *Engine) Status(ctx context.Context) Status {
 	e.mu.Lock()
 	out := e.status
+	out.CheckedAt = time.Now().UTC().Format(time.RFC3339Nano)
+	out.HandshakeRecent = false
+	out.ObservationAvailable = false
+	out.Peers = nil
 	current := e.record.Current
 	out.CanRollback = current != nil || e.record.Pending != nil
 	out.Applied = current != nil && !e.active && e.record.Pending == nil
@@ -681,22 +724,18 @@ func (e *Engine) Status(ctx context.Context) Status {
 	out.DesiredDigest = hash(*current)
 	b, err = e.run(ctx, "wg", "show", current.Interface, "latest-handshakes")
 	if err == nil {
-		recent := 0
-		for _, line := range strings.Split(string(b), "\n") {
-			f := strings.Fields(line)
-			if len(f) != 2 {
-				continue
-			}
-			seconds, _ := strconv.ParseInt(f[1], 10, 64)
-			age := time.Now().Unix() - seconds
-			if seconds > 0 && age >= 0 && age < 180 {
-				recent++
-			}
+		out.Peers, out.ObservationAvailable = observeHandshakes(current.Peers, string(b), time.Now().Unix())
+		out.HandshakeRecent = out.ObservationAvailable && len(out.Peers) > 0
+		for _, peer := range out.Peers {
+			out.HandshakeRecent = out.HandshakeRecent && peer.Online
 		}
-		out.HandshakeRecent = recent == len(current.Peers)
+		out.Stage = "applied_waiting_handshake"
 		if out.HandshakeRecent {
 			out.Stage = "handshake_recent"
 		}
+	}
+	if !out.ObservationAvailable {
+		out.Stage = "observation_unavailable"
 	}
 	return out
 }

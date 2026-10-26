@@ -21,6 +21,7 @@ it('reviews the public plan and requires password plus confirmation before real 
 it('explains expired codes before contacting the matrix or changing the saved peer',async()=>{
  const request=vi.fn(async()=>new Response(JSON.stringify({stage:'not_applied',applied:false,can_rollback:false})));
  render(<AccountContext.Provider value={{user:{id:'a'.repeat(32),username:'owner',role:'admin',revision:1,disabled:false},request,reload:vi.fn(),logout:vi.fn()}}><WireGuardConnection setup={{public_key:'synthetic',revision:1,settings:null}} local={{interface:'wg-test',listen_port:51821,keepalive_seconds:25}} onSync={vi.fn()} guided/></AccountContext.Provider>);
+ await screen.findByText('Ainda não conectado');
  fireEvent.change(screen.getByLabelText('Cole o código recebido do Kore Play'),{target:{value:JSON.stringify({version:1,token:'synthetic',api_origin:'https://matrix.example',expires_at:1})}});
  fireEvent.change(screen.getByLabelText('Senha deste painel Edge'),{target:{value:'synthetic-password'}});
  fireEvent.click(screen.getByRole('checkbox'));fireEvent.click(screen.getByRole('button',{name:'Continuar: conferir conexão'}));
