@@ -156,6 +156,23 @@ preservada. Pré-verificação de leitura: `systemctl is-enabled nginx.service`,
 masked, inactive e nenhum processo. Não é necessário remover máscara, reinstalar
 o Ubuntu ou reiniciar serviços de terceiros para repetir a suíte corrigida.
 
+IPs RFC1918 e IPv6 ULA são aceitos. O assistente enumera endereços das interfaces
+ativas com `ip address show`, exige seleção/confirmação e classifica RFC1918,
+ULA e CGNAT; não muda interfaces ou rotas e não procura IP público em serviço
+externo. IP não privado listado não comprova roteabilidade pela internet. Um
+host atrás de NAT pode ter apenas IP privado local; domínio/IP externo pode ser
+informado manualmente. DNS, NAT e firewall permanecem sob revisão do operador.
+
+`nginx -t` pode verificar bind da porta 443. Por isso instalação e reparo não
+usam mais runuser sem capabilities para esse teste. Usam `systemd-run --wait
+--pipe --collect`, unidade temporária oneshot como kore-edge e somente
+CAP_NET_BIND_SERVICE em AmbientCapabilities/CapabilityBoundingSet. Mantêm
+NoNewPrivileges, ProtectSystem e escrita restrita ao cache, com timeout de 20 s.
+A unidade é coletada ao finalizar; não é habilitada ou mantida em execução.
+Os comandos de preflight/rollback do reparo continuam válidos. Falha de validação
+restaura a configuração original; não relaxa sysctl, não usa chmod amplo e não
+transforma o daemon em root. O erro de bind não deve ser atribuído a IP privado.
+
 Certificado autoassinado com SAN de domínio/IP, chave e bcrypt ficam em
 `/etc/kore-edge/gateway` (0700, arquivos 0600, dono kore-edge). Senha é pedida no
 TTY com confirmação, nunca em argv, ambiente exportado ou logs. Access/error logs

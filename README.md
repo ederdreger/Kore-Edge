@@ -19,6 +19,9 @@ e causa aviso de confiança no navegador. Ao final mostra o resumo: escolha **1*
 instalar, **2** para apenas simular ou **3** para cancelar. Se necessário, o sudo
 solicita a senha do seu usuário administrador.
 
+IPs privados são aceitos e classificados automaticamente; a lista de interfaces
+detectadas pode ser usada com confirmação. IP privado exige LAN/VPN ou NAT para acesso.
+
 Já baixou o projeto? Dentro da pasta, execute `git pull --ff-only` e depois
 `bash scripts/setup.sh`.
 

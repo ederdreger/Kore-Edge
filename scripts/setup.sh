@@ -40,13 +40,31 @@ done
 
 printf '\nETAPA 3/5 - Acesso ao painel\n'
 printf '%s\n' 'Informe o dominio apontado para a VPS ou o IP da VPS (sem http://, porta ou caminho).'
+addresses=()
+if command -v ip >/dev/null 2>&1; then
+  while IFS= read -r candidate; do
+    candidate=${candidate,,}
+    if valid_public_host "$candidate"; then addresses+=("$candidate"); fi
+  done < <(ip -o address show up scope global 2>/dev/null | awk '{split($4,a,"/"); print a[1]}' | sort -u)
+fi
+if ((${#addresses[@]})); then
+  printf '%s\n' 'IPs detectados nas interfaces (confirme o endereco desejado):'
+  for index in "${!addresses[@]}"; do
+    printf '%d) %s - %s\n' "$((index+1))" "${addresses[$index]}" "$(gateway_host_scope "${addresses[$index]}")"
+  done
+fi
 while :; do
-  ask 'Dominio ou IP da VPS:'
+  ask 'Dominio ou IP da VPS (ou numero da lista):'
   public_host=${answer,,}
+  if [[ $answer =~ ^[1-9][0-9]{0,2}$ ]] && ((answer <= ${#addresses[@]})); then public_host=${addresses[$((answer-1))]}; fi
   public_host=${public_host#[}; public_host=${public_host%]}
   if valid_public_host "$public_host"; then break; fi
   printf '%s\n' 'Endereco invalido. Use dominio, IPv4 ou IPv6 da VPS; nao use localhost/loopback.'
 done
+printf 'Tipo detectado: %s\n' "$(gateway_host_scope "$public_host")"
+case "$(gateway_host_scope "$public_host")" in
+  *privado*|*CGNAT*) printf '%s\n' 'Esse IP e aceito. O acesso funciona na rede privada/VPN; para internet use dominio/IP externo com NAT configurado.' ;;
+esac
 while :; do
   ask 'Porta HTTPS do painel (exemplo: 443 ou 8443):'
   public_port=$answer

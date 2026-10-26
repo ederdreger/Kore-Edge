@@ -33,6 +33,34 @@ valid_public_host() {
   done
 }
 valid_gateway_port() { [[ $1 =~ ^[1-9][0-9]{0,4}$ ]] && ((10#$1 <= 65535)); }
+gateway_host_scope() {
+  local host=${1,,} second
+  if [[ $host == *:* ]]; then
+    case "$host" in fc*:*|fd*:*) printf 'IP privado IPv6 (ULA)' ;; *) printf 'IP IPv6' ;; esac
+  elif [[ $host =~ ^[0-9.]+$ ]]; then
+    case "$host" in
+      10.*|192.168.*) printf 'IP privado IPv4' ;;
+      172.*) second=${host#172.}; second=${second%%.*}; if ((10#$second>=16 && 10#$second<=31)); then printf 'IP privado IPv4'; else printf 'IP IPv4 nao privado'; fi ;;
+      100.*) second=${host#100.}; second=${second%%.*}; if ((10#$second>=64 && 10#$second<=127)); then printf 'IP compartilhado CGNAT'; else printf 'IP IPv4 nao privado'; fi ;;
+      *) printf 'IP IPv4 nao privado' ;;
+    esac
+  else printf 'Dominio (alcance depende do DNS)'; fi
+}
+
+# The validator needs the same unprivileged user AND bind capability as the
+# service, since nginx -t can check sockets on privileged HTTPS ports.
+validate_gateway_as_service() {
+  local configuration=$1
+  systemd-run --quiet --wait --pipe --collect --unit="kore-edge-gateway-check-$$" \
+    --property=Type=oneshot --property=User=kore-edge --property=Group=kore-edge \
+    --property=AmbientCapabilities=CAP_NET_BIND_SERVICE \
+    --property=CapabilityBoundingSet=CAP_NET_BIND_SERVICE \
+    --property=NoNewPrivileges=yes --property=ProtectSystem=strict \
+    --property=ProtectHome=yes --property=PrivateTmp=yes \
+    --property=ReadWritePaths=/var/cache/kore-edge/gateway \
+    --property=TimeoutStartSec=20s \
+    /usr/sbin/nginx -t -q -c "$configuration"
+}
 gateway_url() {
   local host=$1 port=$2
   if [[ $host == *:* ]]; then host="[$host]"; fi

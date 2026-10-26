@@ -95,6 +95,8 @@ Pacotes APT nao sao revertidos automaticamente; hooks de pacotes pertencem ao Ub
 EOF
 if [[ -n $public_host ]]; then
   printf 'Painel da VPS: %s\n' "$(gateway_url "$public_host" "$public_port")"
+  printf 'Endereco: %s\n' "$(gateway_host_scope "$public_host")"
+  printf '%s\n' 'IP privado funciona na LAN/VPN; acesso pela internet depende de NAT/DNS e regras do provedor.'
   printf '%s\n' 'Entrada publica HTTPS com senha, somente GET/HEAD; API continua privada.'
   printf '%s\n' 'Certificado local autoassinado (aviso no navegador); sem ACME automatico.'
   printf '%s\n' 'Gateway escuta interfaces publicas na porta escolhida. Firewall/DNS nao serao alterados.'
@@ -113,7 +115,7 @@ fi
 . /etc/os-release
 [[ ${ID:-} == ubuntu && ${VERSION_ID:-} == 24.04 ]] || die 'Suportado somente Ubuntu 24.04.'
 [[ -d /run/systemd/system ]] || die 'Requer host Ubuntu com systemd ativo, nao container sem systemd.'
-for command in apt-get dpkg-query flock getent runuser useradd install tar git ss sha256sum df systemctl systemd-analyze; do
+for command in apt-get dpkg-query flock getent runuser useradd install tar git ss sha256sum df systemctl systemd-analyze systemd-run; do
   command -v "$command" >/dev/null || die 'Ferramenta de pre-verificacao ausente; consulte docs/INSTALL.md.'
 done
 for path in /opt/kore-edge /etc/kore-edge /var/lib/kore-edge /var/cache/kore-edge /etc/systemd/system/kore-edge.service /run/kore-edge-installer.lock; do
@@ -241,7 +243,7 @@ if [[ -n $public_host ]]; then
   chmod 0600 /etc/kore-edge/gateway/{server.key,server.crt,htpasswd,nginx.conf}
   git -c safe.directory="$source_dir" -C "$source_dir" show "$revision:deploy/systemd/kore-edge-gateway.service" >"$release/kore-edge-gateway.service"
   install -o root -g root -m 0644 "$release/kore-edge-gateway.service" /etc/systemd/system/kore-edge-gateway.service
-  runuser -u kore-edge -- nginx -t -q -c /etc/kore-edge/gateway/nginx.conf
+  validate_gateway_as_service /etc/kore-edge/gateway/nginx.conf
 fi
 systemctl daemon-reload
 systemd-analyze verify /etc/systemd/system/kore-edge.service

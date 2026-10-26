@@ -29,7 +29,7 @@ func runWizard(t *testing.T, input string, detect bool, args ...string) (string,
 	directory := t.TempDir()
 	ip := "#!/usr/bin/env bash\nexit 0\n"
 	if detect {
-		ip = "#!/usr/bin/env bash\nprintf '1: lo inet 127.0.0.1/8 scope host lo\\n2: lo inet6 ::1/128 scope host\\n'\n"
+		ip = "#!/usr/bin/env bash\nprintf '1: eth0 inet 10.12.0.5/24 scope global eth0\\n2: lo inet6 ::1/128 scope host\\n'\n"
 	}
 	files := map[string]string{"ip": ip, "ss": "#!/usr/bin/env bash\nexit 0\n"}
 	for _, name := range []string{"sudo", "apt-get", "systemctl"} {
@@ -51,6 +51,15 @@ func runWizard(t *testing.T, input string, detect bool, args ...string) (string,
 		t.Fatal("wizard invoked a mutating command")
 	}
 	return string(out), e
+}
+
+func TestWizardDetectsAndAcceptsPrivateInterfaceAddress(t *testing.T) {
+	output, e := runWizard(t, "s\n1\n1\n8443\nadmin\ns\n2\n", true)
+	for _, expected := range []string{"IPs detectados", "10.12.0.5", "IP privado IPv4", "https://10.12.0.5:8443/", "NAT", "Simulacao concluida"} {
+		if e != nil || !strings.Contains(output, expected) {
+			t.Fatal("private IP wizard failed", expected, output, e)
+		}
+	}
 }
 
 func TestWizardPackageResumeIsExplicitAndDoesNotMutateDuringPlan(t *testing.T) {

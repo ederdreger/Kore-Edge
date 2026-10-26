@@ -35,6 +35,10 @@ bash scripts/setup.sh
    sem `http://`, sem porta e sem caminho. Depois informe a porta HTTPS e o
    usuário para entrar no painel. Não escolha IP de loopback/localhost.
    A porta interna da API é escolhida separadamente e aparece no resumo.
+   Os IPs das interfaces são detectados e classificados; você pode escolher um
+   número da lista ou digitar outro domínio/IP. IP privado é aceito: o painel
+   funciona na LAN/VPN; acesso pela internet requer NAT/domínio externo adequado.
+   Não é feita consulta a serviços externos para descobrir IP público de NAT.
 4. **Início do painel:** responda `s` para iniciar ao terminar, ou `n` para somente
    preparar a instalação. Enter significa não iniciar.
 5. **Resumo:** confira os dados e escolha `1` para instalar, `2` para apenas simular
@@ -114,6 +118,25 @@ bootstrap completo e não gera um novo manifesto de instalação. Futuras trocas
 de release continuam exigindo o procedimento operacional revisado.
 
 ### Acesso ao painel
+
+### Se apareceu `bind() to 0.0.0.0:443 failed (13: Permission denied)`
+
+Esse erro não indica IP privado incompatível. A validação anterior rodava sem
+a permissão necessária para a porta HTTPS privilegiada. Ela agora é executada
+em uma unidade temporária como kore-edge, com CAP_NET_BIND_SERVICE, tal como o
+serviço definitivo. Não é necessário mudar o IP ou trocar a porta para contornar
+o problema. Atualize e repita o reparo, preservando os seus dados:
+
+```sh
+git pull --ff-only
+sudo bash scripts/repair-gateway.sh --apply --start
+```
+
+O plano de preflight, backup e rollback é o mesmo do reparo de cache acima; a
+validação temporária tem timeout de 20 segundos e é coletada após terminar.
+Esse caminho não executa o gateway como root nem muda permissões globais do Linux.
+
+### Acesso HTTPS
 
 Se escolheu iniciar, abra a URL HTTPS mostrada no seu computador. Digite o usuário
 e a senha cadastrados quando o navegador solicitar. Não precisa de túnel SSH.

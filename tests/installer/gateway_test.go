@@ -238,3 +238,27 @@ func TestGatewayTempRepairPreservesConfiguration(t *testing.T) {
 		t.Fatal("repair not idempotent")
 	}
 }
+
+func TestGatewayAddressScope(t *testing.T) {
+	for _, tc := range []struct{ host, scope string }{{"10.1.2.3", "IP privado IPv4"}, {"172.16.0.2", "IP privado IPv4"}, {"172.31.255.2", "IP privado IPv4"}, {"172.32.0.2", "IP IPv4 nao privado"}, {"192.168.1.4", "IP privado IPv4"}, {"100.64.0.3", "IP compartilhado CGNAT"}, {"100.128.0.3", "IP IPv4 nao privado"}, {"fd12::10", "IP privado IPv6 (ULA)"}, {"panel.example.com", "Dominio (alcance depende do DNS)"}} {
+		command := exec.Command(bash(t), "-c", `source ../../scripts/gateway-lib.sh; valid_public_host "$1" && gateway_host_scope "$1"`, "scope", tc.host)
+		out, e := command.Output()
+		if e != nil || string(out) != tc.scope {
+			t.Fatal("address classification failed", tc.host, string(out), e)
+		}
+	}
+}
+
+func TestGatewayValidatorMatchesServiceUserAndBindCapability(t *testing.T) {
+	// A shell mock records argv only. No systemd operation occurs in this test.
+	command := exec.Command(bash(t), "-c", `source ../../scripts/gateway-lib.sh; systemd-run(){ printf '%s\n' "$@"; }; validate_gateway_as_service /etc/kore-edge/gateway/nginx.conf`)
+	out, e := command.Output()
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, expected := range []string{"--wait", "--collect", "--property=User=kore-edge", "--property=AmbientCapabilities=CAP_NET_BIND_SERVICE", "--property=CapabilityBoundingSet=CAP_NET_BIND_SERVICE", "--property=NoNewPrivileges=yes", "--property=TimeoutStartSec=20s", "/usr/sbin/nginx\n-t\n-q\n-c\n/etc/kore-edge/gateway/nginx.conf"} {
+		if !strings.Contains(string(out), expected) {
+			t.Fatal("validator missing service boundary", expected)
+		}
+	}
+}

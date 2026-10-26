@@ -18,7 +18,8 @@ Reparo Kore Edge: diretorios temporarios do Nginx (laboratorio).
 Pre-verificacao: unidades Kore Edge instaladas mas inativas, sem processo Nginx,
 configuracao reconhecida, sem symlinks nos destinos privados.
 Mudancas: backup de nginx.conf; configurar fastcgi/uwsgi/scgi no cache privado;
-criar somente os cinco subdiretorios de cache; validar Nginx como kore-edge.
+criar somente os cinco subdiretorios de cache; validar como kore-edge com
+CAP_NET_BIND_SERVICE em unidade transitoria (necessario para porta 443).
 Senha, certificado, chave, dominio, porta e binarios serao preservados.
 Sem APT, sem recompilacao, sem alteracoes de firewall/rede ou sites do Nginx padrao.
 Rollback: se nginx -t falhar, restaurar automaticamente nginx.conf do backup.
@@ -27,7 +28,7 @@ se a prontidao falhar, parar os novos servicos e preservar a configuracao corrig
 EOF
 if ((!apply)); then printf '%s\n' 'SIMULACAO: nenhuma alteracao realizada.'; exit 0; fi
 ((EUID == 0)) || die 'Execute o reparo com sudo no laboratorio.'
-for command in nginx runuser getent systemctl systemd-analyze pgrep flock curl openssl ss; do
+for command in nginx runuser getent systemctl systemd-analyze systemd-run pgrep flock curl openssl ss; do
   command -v "$command" >/dev/null || die 'Ferramenta necessaria ao reparo ausente.'
 done
 for path in /etc/kore-edge /etc/kore-edge/gateway /var/cache/kore-edge /var/cache/kore-edge/gateway /run/kore-edge-installer.lock; do
@@ -80,7 +81,7 @@ for temp in client proxy fastcgi uwsgi scgi; do
   install -d -o kore-edge -g kore-edge -m 0700 "/var/cache/kore-edge/gateway/$temp"
 done
 mv -T -- "$candidate" "$configuration"; changed=1
-runuser -u kore-edge -- nginx -t -q -c "$configuration"
+validate_gateway_as_service "$configuration"
 validated=1
 systemctl daemon-reload
 systemd-analyze verify /etc/systemd/system/kore-edge.service /etc/systemd/system/kore-edge-gateway.service
@@ -97,5 +98,7 @@ if ((start)); then
   systemctl is-active --quiet kore-edge-gateway.service || { systemctl stop kore-edge-gateway.service kore-edge.service; die 'Gateway indisponivel.'; }
 fi
 printf 'Reparo validado. Backup: %s\nPainel: %s\n' "$backup" "$(gateway_url "$public_host" "$public_port")"
+printf 'Endereco: %s\n' "$(gateway_host_scope "$public_host")"
+printf '%s\n' 'IP privado: acesso pela LAN/VPN. Internet depende de NAT/DNS e firewall do provedor.'
 printf '%s\n' 'Usuario, senha, certificado e binarios preservados. Sem enable no boot.'
 openssl x509 -noout -fingerprint -sha256 -in /etc/kore-edge/gateway/server.crt
