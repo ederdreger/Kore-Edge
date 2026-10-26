@@ -151,7 +151,7 @@ func (s *Store) validate() error {
 	}
 	return nil
 }
-func (s *Store) save(next database, actor, role, action string) error {
+func (s *Store) save(next database, actor, role, action string) (result error) {
 	nonce := token()
 	if len(nonce) < 16 {
 		return ErrStorage
@@ -161,7 +161,11 @@ func (s *Store) save(next database, actor, role, action string) error {
 		return ErrStorage
 	}
 	status := 500
-	defer func() { _ = end(status) }()
+	defer func() {
+		if end(status) != nil {
+			result = ErrStorage
+		}
+	}()
 	b, e := json.Marshal(next)
 	if e != nil {
 		return ErrStorage

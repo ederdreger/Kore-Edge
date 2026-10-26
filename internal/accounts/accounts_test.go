@@ -209,3 +209,17 @@ func TestOfflineRecovery(t *testing.T) {
 		t.Fatal(e)
 	}
 }
+func TestAuditFailureBlocksAccountChanges(t *testing.T) {
+	s := fixture(t)
+	_, _, admin, e := s.login("admin", testPassword, false)
+	if e != nil {
+		t.Fatal(e)
+	}
+	s.audit.Close()
+	if s.change(admin, testPassword, "", "reader", testPassword, "viewer", false) == nil {
+		t.Fatal("unaudited change accepted")
+	}
+	if len(s.Users()) != 1 {
+		t.Fatal("unaudited change committed")
+	}
+}

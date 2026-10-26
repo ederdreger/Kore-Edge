@@ -8,14 +8,14 @@ import { AccountContext } from './account-context';
 import type { PanelUser } from './account-context';
 export function Brand(){return <div className="login-brand"><svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="kore-brand" x2="1" y2="1"><stop stopColor="#2ed5ff"/><stop offset=".5" stopColor="#9f26ff"/><stop offset="1" stopColor="#ff00bd"/></linearGradient></defs><path d="M10 11Q10 3 19 8L56 29Q63 33 55 38L19 59Q10 64 10 54Z M25 23V44L43 33Z" fill="url(#kore-brand)" fillRule="evenodd"/></svg><div><strong>Kore <em>Edge</em></strong><span>IPTV DISTRIBUTION</span></div></div>}
 export function PanelRoot(){
- const [session,setSession]=useState<{user:PanelUser;csrf:string}|null>(null);const[loading,setLoading]=useState(true);const[message,setMessage]=useState('');
+ const [session,setSession]=useState<{user:PanelUser;csrf:string}|null>(null);const[loading,setLoading]=useState(true);const[message,setMessage]=useState('');const[logoutError,setLogoutError]=useState('');
  async function reload(){try{const r=await fetch('/api/v1/auth/me',{credentials:'same-origin',cache:'no-store'});if(r.ok)setSession(await r.json());else {setSession(null);if(r.status===404||r.status===403)setMessage('O login de usuários precisa ser habilitado no servidor. Consulte a atualização do painel.')}}catch{setMessage('Não foi possível conectar ao servidor.');setSession(null)}finally{setLoading(false)}}
  useEffect(()=>{void reload();const expired=()=>{setSession(null);setMessage('Sua sessão terminou. Entre novamente.')};window.addEventListener('kore:unauthorized',expired);return()=>window.removeEventListener('kore:unauthorized',expired)},[]);
  async function request(method:string,path:string,body?:unknown){const r=await fetch(path,{method,credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-CSRF-Token':session?.csrf??''},body:body===undefined?undefined:JSON.stringify(body)});if(r.status===401){setSession(null);setMessage('Entre novamente para continuar.')}return r}
- async function logout(){try{await request('POST','/api/v1/auth/logout',{})}finally{setSession(null);setMessage('Sessão encerrada.')}}
+ async function logout(){setLogoutError('');try{const r=await request('POST','/api/v1/auth/logout',{});if(!r.ok)throw new Error();setSession(null);setMessage('Sessão encerrada.')}catch{setLogoutError('Não foi possível encerrar a sessão no servidor. Tente novamente.')}}
  if(loading)return <div className="auth-loading" role="status">Conectando ao Kore Edge…</div>;
  if(!session)return <Login message={message} onLogin={setSession}/>;
- return <AccountContext.Provider value={{user:session.user,request,reload,logout}}><App/></AccountContext.Provider>
+ return <AccountContext.Provider value={{user:session.user,request,reload,logout}}>{logoutError&&<p role="alert" className="login-error">{logoutError}</p>}<App/></AccountContext.Provider>
 }
 export function Login({message,onLogin}:{message?:string;onLogin:(s:{user:PanelUser;csrf:string})=>void}){
  const[username,setUsername]=useState('');const[password,setPassword]=useState('');const[show,setShow]=useState(false);const[remember,setRemember]=useState(false);const[busy,setBusy]=useState(false);const[error,setError]=useState('');const[recovery,setRecovery]=useState(false);
