@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useAccount } from './account-context';
+import { copyPublicText } from './public-copy';
+import { WireGuardConnection } from './wireguard-connection';
 
 type Settings={interface:string;address:string;listen_port:number;edge_endpoint:string;kore_play_public_key:string;kore_play_endpoint:string;allowed_ips:string[];keepalive_seconds:number};
-type Status={state:string;applied:boolean;public_key:string;revision:number;settings:Settings|null;kore_play_peer:string};
+export type Status={state:string;applied:boolean;public_key:string;revision:number;settings:Settings|null;kore_play_peer:string};
 export function WireGuardSetup(){
+ const keyField=useRef<HTMLTextAreaElement>(null),peerField=useRef<HTMLTextAreaElement>(null);const[copyStatus,setCopyStatus]=useState('');const[copyBusy,setCopyBusy]=useState(false);
  const account=useAccount();const[status,setStatus]=useState<Status|null>(null);const[busy,setBusy]=useState(false);const[message,setMessage]=useState('');
  const[password,setPassword]=useState('');const[confirmed,setConfirmed]=useState(false);
  const[iface,setIface]=useState('');const[address,setAddress]=useState('');const[port,setPort]=useState('');const[endpoint,setEndpoint]=useState('');
@@ -19,15 +22,15 @@ export function WireGuardSetup(){
    const r=await account.request(generating?'POST':'PUT',generating?'/api/v1/wireguard/setup/identity':'/api/v1/wireguard/setup/peer',generating?{current_password:password,confirmed}:{current_password:password,confirmed,revision:status.revision,settings});
    setPassword('');setConfirmed(false);
    if(!r.ok){setMessage(r.status===409?'A configuração foi alterada em outra sessão. Atualize os dados antes de salvar.':r.status===403?'Operação recusada. Confira sua senha atual e aguarde se excedeu o limite de tentativas.':'Não foi possível salvar. Confira IPs, portas, chave pública e rotas privadas sem sobreposição.');return}
-   accept(await r.json());setMessage(generating?'Chaves geradas. Copie a chave pública e complete os dados do peer.':'Peer preparado. Copie o bloco público para cadastrar no Kore Play. O túnel ainda não foi aplicado.');
+   accept(await r.json());setMessage(generating?'Chaves geradas. Copie a chave pública e complete os dados do peer.':'Peer preparado. Copie o bloco público para cadastrar no Kore Play. Consulte o estado real no assistente de conexão.');
   }catch{setPassword('');setMessage('Não foi possível concluir. Atualize os dados para conferir o estado salvo.')}finally{setBusy(false)}
  }
- async function copy(text:string){try{await navigator.clipboard.writeText(text);setMessage('Dados públicos copiados.')}catch{setMessage('Selecione o texto público abaixo e copie manualmente.')}}
+ async function copy(text:string,field:HTMLTextAreaElement|null){setCopyBusy(true);setCopyStatus('Copiando dados públicos…');const result=await copyPublicText(text,field);setCopyStatus(result==='copied'?'Copiado! Cole no Kore Play.':'A cópia automática foi bloqueada. O texto está selecionado: pressione Ctrl+C ou use o menu Copiar do dispositivo.');setCopyBusy(false)}
  return <section className="panel user-manager wireguard-setup"><div className="section-title"><h2>Integração WireGuard com Kore Play</h2><button className="button" disabled={busy} onClick={()=>void load()}>Atualizar configuração</button></div>
  <p>Prepare a identidade do Edge e os dados do peer para cadastro no Kore Play. A chave privada permanece protegida no servidor.</p>
- <p><strong>{!status?'Carregando configuração…':status.state==='unconfigured'?'Identidade ainda não gerada':status.state==='credentials_generated'?'Chaves geradas · aguardando dados do peer':'Peer preparado · túnel não aplicado'}</strong></p>
+ <p><strong>{!status?'Carregando configuração…':status.state==='unconfigured'?'Identidade ainda não gerada':status.state==='credentials_generated'?'Chaves geradas · aguardando dados do peer':'Peer preparado · consulte a conexão no assistente'}</strong></p>
  {message&&<p role="status">{message}</p>}
- {status?.public_key&&<div className="wg-public"><label>Chave pública do Edge<textarea readOnly rows={2} value={status.public_key}/></label><button className="button" onClick={()=>void copy(status.public_key)}>Copiar chave pública</button></div>}
+ {status?.public_key&&<div className="wg-public"><label>Chave pública do Edge<textarea ref={keyField} readOnly rows={2} value={status.public_key}/></label><button type="button" className="button" disabled={copyBusy} onClick={()=>void copy(status.public_key,keyField.current)}>Copiar chave pública</button><p role="status" aria-live="polite">{copyStatus}</p></div>}
  {status&&<form className="user-form" onSubmit={e=>void save(e)}>
  {status.public_key?<><h3>Dados confirmados do túnel</h3><label>Interface WireGuard do Edge<input required maxLength={15} value={iface} onChange={e=>setIface(e.target.value)} placeholder="Informe o nome confirmado"/></label>
  <label>IP do Edge no túnel (CIDR /32 ou /128)<input required value={address} onChange={e=>setAddress(e.target.value)} placeholder="Informe o IP atribuído pelo Kore Play"/></label>
@@ -41,7 +44,8 @@ export function WireGuardSetup(){
  <label className="wg-confirm"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>{status.public_key?'Conferi interface, IPs, portas, chave pública e rotas.':'Confirmo a geração da identidade WireGuard deste Edge.'}</label>
  <button className="button primary" disabled={busy||!confirmed}>{busy?'Salvando…':status.public_key?'Salvar dados do peer':'Gerar credenciais WireGuard'}</button>
  </form>}
- {status?.kore_play_peer&&<div className="wg-public"><h3>Cadastrar no Kore Play</h3><p>Este bloco contém somente a chave pública e os dados do peer Edge.</p><textarea aria-label="Peer público para Kore Play" readOnly rows={6} value={status.kore_play_peer}/><button className="button" onClick={()=>void copy(status.kore_play_peer)}>Copiar peer para Kore Play</button></div>}
- <p className="muted">Salvar prepara o cadastro local. A ativação do túnel e a validação de handshake são etapas separadas.</p>
+ {status?.kore_play_peer&&<div className="wg-public"><h3>Cadastrar no Kore Play</h3><p>Este bloco contém somente a chave pública e os dados do peer Edge.</p><textarea ref={peerField} aria-label="Peer público para Kore Play" readOnly rows={6} value={status.kore_play_peer}/><button type="button" className="button" disabled={copyBusy} onClick={()=>void copy(status.kore_play_peer,peerField.current)}>Copiar peer para Kore Play</button><p role="status" aria-live="polite">{copyStatus}</p></div>}
+ {status?.public_key&&<WireGuardConnection setup={status} local={{interface:iface,listen_port:Number(port),keepalive_seconds:Number(keepalive)}} onSync={accept}/>}
+ <p className="muted">Salvar prepara o cadastro local. Use o assistente de conexão para revisar e autorizar a ativação real.</p>
  </section>;
 }

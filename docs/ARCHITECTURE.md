@@ -97,3 +97,15 @@ mutações. Papéis admin/viewer não concedem escrita nas APIs operacionais.
 Base privada, hashes bcrypt, revisões para revogação, auditoria sem segredos e
 locks exclusivos. Perfil production exige contas e bloqueia módulos sintéticos/mock.
 Veja [contrato e migração](modules/15-accounts.md).
+
+
+## Aplicação WireGuard explícita
+
+O módulo opcional de conexão usa `edge-wg-bridge`, processo separado do core,
+com socket UNIX autenticado por UID (`SO_PEERCRED`). O core permanece sem
+CAP_NET_ADMIN. Somente o auxiliar instalado explicitamente pode aplicar a interface
+confirmada e as rotas privadas revisadas. Diário root registra propriedade e
+rollback, sem chaves privadas. Uma falha interrompida exige recuperação explícita.
+Código temporário HTTPS sincroniza dados públicos com prova X25519/HMAC; nenhum
+endpoint público fornece comandos, caminhos ou chaves privadas ao auxiliar.
+Contrato e limites em [conexão WireGuard](modules/17-wireguard-connection.md).

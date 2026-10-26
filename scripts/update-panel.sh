@@ -63,14 +63,14 @@ git -c safe.directory="$source_dir" -C "$source_dir" archive "$revision" >"$work
 chmod 0644 "$work/source.tar"
 runuser -u nobody -- tar -xf "$work/source.tar" -C "$work/src"
 runuser -u nobody -- env HOME="$work/home" GOCACHE="$work/cache" GOPATH="$work/gopath" CGO_ENABLED=1 \
- bash -c 'set -euo pipefail; cd "$1"; go mod download; go mod verify; go vet ./...; go test ./... -count=1 -timeout=180s; go test -race ./... -count=1 -timeout=240s; for name in edge-agent edge-ops edge-provision edge-users; do go build -trimpath -o "$2/$name" "./cmd/$name"; done' _ "$work/src" "$work/out"
+ bash -c 'set -euo pipefail; cd "$1"; go mod download; go mod verify; go vet ./...; go test ./... -count=1 -timeout=180s; go test -race ./... -count=1 -timeout=240s; for name in edge-agent edge-ops edge-provision edge-users edge-wg-bridge; do go build -trimpath -o "$2/$name" "./cmd/$name"; done' _ "$work/src" "$work/out"
 release="/opt/kore-edge/releases/$revision-panel"
 [[ ! -L $release ]] || die 'Release preparada com symlink.'
 if [[ -d $release ]]; then
- for name in edge-agent edge-ops edge-provision edge-users; do cmp -s "$work/out/$name" "$release/$name" || die 'Release existente diverge do build.'; done
+ for name in edge-agent edge-ops edge-provision edge-users edge-wg-bridge; do cmp -s "$work/out/$name" "$release/$name" || die 'Release existente diverge do build.'; done
 fi
 install -d -o root -g root -m 0755 "$release"
-for name in edge-agent edge-ops edge-provision edge-users; do install -o root -g root -m 0755 "$work/out/$name" "$release/$name"; done
+for name in edge-agent edge-ops edge-provision edge-users edge-wg-bridge; do install -o root -g root -m 0755 "$work/out/$name" "$release/$name"; done
 origin=$(gateway_url "$host" "$port"); origin=${origin%/}
 "$release/edge-users" --action prepare-config --config "$config" --directory /var/lib/kore-edge/users --origin "$origin" --output "$work/edge.yaml"
 backup=$(mktemp -d /etc/kore-edge/panel-before.XXXXXXXX)
