@@ -9,6 +9,8 @@ No Edge, **Canais → Canais do Kore Play** busca a lista,
 mostra HTTP MPEG-TS/HLS disponíveis na origem, teste curto de sinal e **Play**
 por canal. O mini player abre uma prévia autenticada por vez, com pausa/fechamento
 encerrando a conexão e limite de cinco minutos. Codecs dependem do navegador.
+A página de canais usa a largura disponível, com resultados de teste quebrando
+linha e apresentação em cartões nas telas pequenas.
 Sem canais de demonstração, conversão automática ou liberação entre parceiros.
 Veja o [passo a passo](docs/CANAIS-KORE-PLAY.md) e o
 [contrato e limites](docs/modules/18-partner-channels.md).

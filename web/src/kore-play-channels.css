@@ -1,0 +1,21 @@
+/* Only the partner channel page: dashboard tables keep their own layout. */
+.kore-play-channels.wg-guide{width:100%;max-width:none;min-width:0;margin-inline:0}
+.kore-play-channels>.table-scroll{width:100%;min-width:0}
+.kore-play-channels table{width:100%;min-width:0;table-layout:fixed;white-space:normal;font-size:13px}
+.kore-play-channels th{font-size:12px;font-weight:600}
+.kore-play-channels :is(th,td){height:auto;vertical-align:top;white-space:normal;overflow-wrap:anywhere;padding:12px 10px;line-height:1.6}
+.kore-play-channels td small{display:block;margin-top:5px;white-space:normal;overflow-wrap:anywhere;color:var(--muted)}
+.kore-play-channels :is(code,p,strong,summary){overflow-wrap:anywhere}
+.kore-play-channels td code{white-space:normal;word-break:break-word}
+.kore-play-channels td .button{min-height:35px;height:auto;white-space:normal;margin:0 6px 6px 0;padding:8px 10px}
+.kore-play-channels td details{padding:10px;min-width:0;margin-top:4px}
+.kore-play-channels :is(.wg-public,.user-form){min-width:0}
+@media(max-width:900px){
+ .kore-play-channels table,.kore-play-channels tbody,.kore-play-channels tr,.kore-play-channels td{display:block;width:100%}
+ .kore-play-channels colgroup{display:none}
+ .kore-play-channels thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+ .kore-play-channels tbody{display:grid;gap:12px}
+ .kore-play-channels tr{border:1px solid #37205c;border-radius:10px;padding:10px}
+ .kore-play-channels td{border:0;padding:6px;min-width:0}
+ .kore-play-channels td::before{content:attr(data-label);display:block;font-size:10px;font-weight:600;color:var(--muted);margin-bottom:4px}
+}
