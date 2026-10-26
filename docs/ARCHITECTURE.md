@@ -79,3 +79,13 @@ headers e sem mutações pelo gateway. Certificados locais são de laboratório;
 não há ACME automático nem alteração de firewall/DNS. Regras e rollback em
 [INSTALL](INSTALL.md). Isso não equivale a homologação para produção ou integração
 de mídia com a matriz.
+
+
+## Contas locais e painel limpo
+
+Accounts envolve o guard HTTP existente, autentica sessões HTTPS e intercepta
+somente auth/users. Nginx preserva Origin; cookies Secure/HttpOnly e CSRF protegem
+mutações. Papéis admin/viewer não concedem escrita nas APIs operacionais.
+Base privada, hashes bcrypt, revisões para revogação, auditoria sem segredos e
+locks exclusivos. Perfil production exige contas e bloqueia módulos sintéticos/mock.
+Veja [contrato e migração](modules/15-accounts.md).

@@ -144,3 +144,12 @@ repair_gateway_temp_paths() {
     }
   ' "$1"
 }
+# Session-based panel gateway. Retains TLS/cache isolation from the legacy renderer.
+render_panel_gateway() {
+  render_gateway "$@" | sed \
+    -e '/^[[:space:]]*auth_basic /d' \
+    -e '/^[[:space:]]*auth_basic_user_file /d' \
+    -e '/limit_except GET HEAD/d' \
+    -e '/proxy_set_header Origin /d' \
+    -e 's/client_max_body_size 1k;/client_max_body_size 16k;/'
+}

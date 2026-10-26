@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"io"
+	"kore-edge/internal/accounts"
 	"kore-edge/internal/catalog"
 	"kore-edge/internal/diagnostics"
 	"kore-edge/internal/hls"
@@ -21,6 +22,9 @@ import (
 )
 
 type API struct {
+	Mode                string
+	Accounts            *accounts.Store
+	PublicOrigin        string
 	Integration         *integration.Service
 	Security            *security.Controller
 	Provision           *provision.Registry
@@ -40,7 +44,11 @@ func (a *API) Handler() http.Handler {
 	if guard == nil {
 		guard = security.Local()
 	}
-	return guard.Wrap(a.routes())
+	handler := guard.Wrap(a.routes())
+	if a.Accounts != nil {
+		return a.Accounts.Wrap(a.PublicOrigin, handler)
+	}
+	return handler
 }
 
 func (a *API) routes() http.Handler {
@@ -142,9 +150,9 @@ func (a *API) routes() http.Handler {
 			}
 			return
 		}
-		code, body := http.StatusOK, `{"status":"ok","mode":"laboratory"}`
+		code, body := http.StatusOK, `{"status":"ok","mode":"`+a.mode()+`"}`
 		if r.URL.Path == "/readyz" && !a.ready.Load() {
-			code, body = http.StatusServiceUnavailable, `{"status":"not_ready","mode":"laboratory"}`
+			code, body = http.StatusServiceUnavailable, `{"status":"not_ready","mode":"`+a.mode()+`"}`
 		}
 		w.WriteHeader(code)
 		if r.Method != http.MethodHead {
@@ -157,4 +165,11 @@ func (a *API) Server() *http.Server {
 	return &http.Server{Handler: a.Handler(), ReadHeaderTimeout: 3 * time.Second,
 		ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second,
 		IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 * 1024}
+}
+
+func (a *API) mode() string {
+	if a.Mode == "production" {
+		return "production"
+	}
+	return "laboratory"
 }

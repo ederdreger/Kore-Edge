@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { adapt, cpuPercent, filterChannels, rate, readAPI, API_PATHS } from './data';
-import { demoData } from './demo';
+import { demoData } from './fixtures.test-data';
 import type { Diagnostics, Raw } from './types';
 
 afterEach(()=>vi.unstubAllGlobals());

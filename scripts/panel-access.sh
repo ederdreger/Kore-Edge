@@ -14,6 +14,9 @@ fi
 [[ -t 0 && -t 1 ]] || { printf '%s\n' 'Execute em um terminal interativo; senha por pipe/argumento nao e aceita.' >&2; exit 1; }
 die(){ printf 'ERRO: %s\n' "$1" >&2; exit 1; }
 for command in htpasswd runuser getent flock; do command -v "$command" >/dev/null || die 'Ferramenta de autenticacao ausente.'; done
+if [[ -f /var/lib/kore-edge/users/users.json ]]; then
+ exec bash "$(dirname -- "${BASH_SOURCE[0]}")/reset-admin.sh" --apply
+fi
 directory=/etc/kore-edge/gateway
 file="$directory/htpasswd"
 for path in /etc/kore-edge "$directory" "$file" /run/kore-edge-installer.lock; do [[ ! -L $path ]] || die 'Destino com symlink; operacao recusada.'; done

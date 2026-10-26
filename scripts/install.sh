@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 umask 077
 
-apply=0 lab=0 start=0 profile=media listen=''
+apply=0 lab=0 production=0 start=0 profile=media listen=''
 resume_packages=0
 public_host='' public_port='' gateway_user=admin
 source_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -21,6 +21,7 @@ Kore Edge - instalador Ubuntu Server 24.04 (laboratorio; homologacao NO-GO)
 --plan       Padrao: apenas mostrar pre-verificacao, mudancas e rollback.
 --apply      Instalar pacotes, compilar/testar como usuario sem privilegios,
              instalar configuracao somente leitura e unidade systemd.
+--production Instalacao limpa: sem streams sinteticos, mocks ou catalogo de exemplo.
 --lab-only   Confirmar explicitamente que o host e de laboratorio, nao producao.
 --start      Iniciar somente o novo servico; nao habilitar no boot.
 --profile    media (padrao): FFmpeg e wireguard-tools; core: somente API/dashboard.
@@ -41,6 +42,7 @@ while (($#)); do
     --plan) apply=0 ;;
     --apply) apply=1 ;;
     --lab-only) lab=1 ;;
+    --production) production=1 ;;
     --start) start=1 ;;
     --resume-packages) resume_packages=1 ;;
     --profile|--listen|--public-host|--public-port|--gateway-user)
@@ -75,10 +77,13 @@ if [[ -n $public_host ]]; then
 elif [[ -n $public_port || $gateway_user != admin ]]; then die '--public-port/--gateway-user exigem --public-host.'; fi
 if ((resume_packages)) && [[ -z $public_host ]]; then die 'Retomada de pacotes Nginx exige --public-host.'; fi
 
+if ((production)); then
+ [[ -n $public_host && $lab == 0 ]] || die "--production exige HTTPS e nao pode combinar --lab-only."
+fi
 packages=(ca-certificates curl git golang-go build-essential iproute2)
 if [[ $profile == media ]]; then packages+=(ffmpeg wireguard-tools); fi
 if [[ -n $public_host ]]; then packages+=(nginx openssl apache2-utils); fi
-printf '%s\n' 'Kore Edge: plano de laboratorio; implantacao permanece NO-GO.'
+printf '%s\n' 'Kore Edge: instalacao limpa. Homologacao operacional permanece NO-GO ate validacao no destino.'
 printf 'Perfil: %s\nListener: %s\nAPT (somente pacotes ausentes): %s\n' "$profile" "$listen" "${packages[*]}"
 cat <<'EOF'
 Pre-verificacao: Ubuntu 24.04, root somente na instalacao, systemd, espaco,
@@ -97,7 +102,7 @@ if [[ -n $public_host ]]; then
   printf 'Painel da VPS: %s\n' "$(gateway_url "$public_host" "$public_port")"
   printf 'Endereco: %s\n' "$(gateway_host_scope "$public_host")"
   printf '%s\n' 'IP privado funciona na LAN/VPN; acesso pela internet depende de NAT/DNS e regras do provedor.'
-  printf '%s\n' 'Entrada publica HTTPS com senha, somente GET/HEAD; API continua privada.'
+  printf '%s\n' 'HTTPS com login individual e gerenciamento de usuarios; API operacional continua em leitura.'
   printf '%s\n' 'Certificado local autoassinado (aviso no navegador); sem ACME automatico.'
   printf '%s\n' 'Gateway escuta interfaces publicas na porta escolhida. Firewall/DNS nao serao alterados.'
   printf '%s\n' 'Nginx preexistente nao e adotado. A unidade nginx padrao sera mascarada antes do APT.'
@@ -108,7 +113,7 @@ if (( ! apply )); then
   printf '%s\n' 'SIMULACAO: nenhum comando operacional executado.'
   exit 0
 fi
-((lab)) || die 'Aplicacao exige --lab-only; producao nao esta homologada.'
+((lab || production)) || die 'Aplicacao exige --lab-only; producao nao esta homologada.'
 ((EUID == 0)) || die 'Execute --apply como root somente no host de laboratorio.'
 [[ -f /etc/os-release ]] || die 'Sistema nao identificado.'
 # os-release is a trusted OS-owned file, not an installer argument.
@@ -196,7 +201,7 @@ mkdir "$work/src" "$work/home" "$work/out"
 chown -R "$build_user" "$work"
 runuser -u "$build_user" -- tar -xf "$work/source.tar" -C "$work/src"
 runuser -u "$build_user" -- env HOME="$work/home" GOCACHE="$work/cache" GOPATH="$work/gopath" CGO_ENABLED=1 \
-  bash -c 'set -euo pipefail; cd "$1"; go mod download; go mod verify; go vet ./...; go test ./... -count=1 -timeout=120s; go test -race ./... -count=1 -timeout=180s; for name in edge-agent edge-ops edge-provision; do go build -trimpath -o "$2/$name" "./cmd/$name"; done' _ "$work/src" "$work/out"
+  bash -c 'set -euo pipefail; cd "$1"; go mod download; go mod verify; go vet ./...; go test ./... -count=1 -timeout=120s; go test -race ./... -count=1 -timeout=180s; for name in edge-agent edge-ops edge-provision edge-users; do go build -trimpath -o "$2/$name" "./cmd/$name"; done' _ "$work/src" "$work/out"
 
 if getent passwd kore-edge >/dev/null; then
   IFS=: read -r _ _ service_uid _ _ service_home service_shell < <(getent passwd kore-edge)
@@ -212,11 +217,12 @@ install -d -o root -g kore-edge -m 0750 /etc/kore-edge
 install -d -o kore-edge -g kore-edge -m 0700 /var/lib/kore-edge /var/cache/kore-edge
 release="/opt/kore-edge/releases/$revision"
 install -d -o root -g root -m 0755 "$release"
-for name in edge-agent edge-ops edge-provision; do install -o root -g root -m 0755 "$work/out/$name" "$release/$name"; done
+for name in edge-agent edge-ops edge-provision edge-users; do install -o root -g root -m 0755 "$work/out/$name" "$release/$name"; done
 install -o root -g kore-edge -m 0640 /dev/null /etc/kore-edge/edge.yaml
+installation_mode=laboratory; if ((production)); then installation_mode=production; fi
 cat >/etc/kore-edge/edge.yaml <<EOF
 version: 1
-mode: laboratory
+mode: $installation_mode
 security:
   mode: local_readonly
 http:
@@ -238,9 +244,18 @@ if [[ -n $public_host ]]; then
   unset gateway_password
   ipv6=0; if [[ -r /proc/net/if_inet6 ]] && grep -q . /proc/net/if_inet6; then ipv6=1; fi
   if [[ $public_host == *:* && $ipv6 == 0 ]]; then die 'IPv6 escolhido, mas indisponivel no host.'; fi
-  render_gateway "$public_host" "$public_port" "$listen" "$ipv6" >/etc/kore-edge/gateway/nginx.conf
+  render_panel_gateway "$public_host" "$public_port" "$listen" "$ipv6" >/etc/kore-edge/gateway/nginx.conf
   chown kore-edge:kore-edge /etc/kore-edge/gateway/{server.key,server.crt,htpasswd,nginx.conf}
   chmod 0600 /etc/kore-edge/gateway/{server.key,server.crt,htpasswd,nginx.conf}
+  install -d -o kore-edge -g kore-edge -m 0700 /var/lib/kore-edge/users
+  runuser -u kore-edge -- "$release/edge-users" --action import-htpasswd --directory /var/lib/kore-edge/users --file /etc/kore-edge/gateway/htpasswd
+  origin=$(gateway_url "$public_host" "$public_port"); origin=${origin%/}
+  cat >>/etc/kore-edge/edge.yaml <<EOF
+accounts:
+  enabled: true
+  directory: /var/lib/kore-edge/users
+  public_origin: "$origin"
+EOF
   git -c safe.directory="$source_dir" -C "$source_dir" show "$revision:deploy/systemd/kore-edge-gateway.service" >"$release/kore-edge-gateway.service"
   install -o root -g root -m 0644 "$release/kore-edge-gateway.service" /etc/systemd/system/kore-edge-gateway.service
   validate_gateway_as_service /etc/kore-edge/gateway/nginx.conf
@@ -251,7 +266,7 @@ if [[ -n $public_host ]]; then systemd-analyze verify /etc/systemd/system/kore-e
 printf 'revision=%s\nprofile=%s\nlisten=%s\n' "$revision" "$profile" "$listen" >/opt/kore-edge/install-manifest
 if [[ -n $public_host ]]; then printf 'public_host=%s\npublic_port=%s\ngateway_user=%s\n' "$public_host" "$public_port" "$gateway_user" >>/opt/kore-edge/install-manifest; fi
 chmod 0600 /opt/kore-edge/install-manifest
-(cd /opt/kore-edge && sha256sum "releases/$revision/edge-agent" "releases/$revision/edge-ops" "releases/$revision/edge-provision" /etc/kore-edge/edge.yaml /etc/systemd/system/kore-edge.service >installed.sha256)
+(cd /opt/kore-edge && sha256sum "releases/$revision/edge-agent" "releases/$revision/edge-ops" "releases/$revision/edge-provision" "releases/$revision/edge-users" /etc/kore-edge/edge.yaml /etc/systemd/system/kore-edge.service >installed.sha256)
 if [[ -n $public_host ]]; then sha256sum /etc/kore-edge/gateway/nginx.conf /etc/systemd/system/kore-edge-gateway.service >>/opt/kore-edge/installed.sha256; fi
 if ((start)); then
   systemctl start kore-edge.service
@@ -273,6 +288,6 @@ printf '%s\n' 'Instalacao concluida. Sem enable no boot. Homologacao permanece N
 printf 'Config: /etc/kore-edge/edge.yaml\nPainel local: http://%s/\n' "$listen"
 if [[ -n $public_host ]]; then
   printf 'Painel da VPS: %s\n' "$(gateway_url "$public_host" "$public_port")"
-  printf '%s\n' 'O navegador pedira usuario/senha e avisara sobre o certificado local. Confira a impressao digital:'
+  printf '%s\n' 'Entre pela tela Kore Edge com a conta criada. Certificado local: confira a impressao digital:'
   openssl x509 -noout -fingerprint -sha256 -in /etc/kore-edge/gateway/server.crt
 fi

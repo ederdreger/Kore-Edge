@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"kore-edge/internal/accounts"
 	"kore-edge/internal/api"
 	"kore-edge/internal/catalog"
 	"kore-edge/internal/config"
@@ -104,7 +105,19 @@ func Run(ctx context.Context, c config.Config) error {
 			return err
 		}
 	}
-	return serveIntegrated(ctx, ln, store, engine, manager, registry, c.Provision.EdgeID, guard, synchronizer)
+	var users *accounts.Store
+	if c.Accounts.Enabled {
+		users, err = accounts.Open(c.Accounts.Directory)
+		if err != nil {
+			ln.Close()
+			return err
+		}
+		defer users.Close()
+		if len(users.Users()) == 0 {
+			return accounts.ErrStorage
+		}
+	}
+	return servePanel(ctx, ln, store, engine, manager, registry, c.Provision.EdgeID, guard, synchronizer, users, c.Accounts.PublicOrigin, c.Mode)
 }
 
 // Serve takes ownership of the listener, allowing tests to use ephemeral ports.
@@ -129,6 +142,9 @@ func serveSecure(ctx context.Context, ln net.Listener, store *catalog.Store, eng
 	return serveIntegrated(ctx, ln, store, engine, manager, registry, edgeID, guard, nil)
 }
 func serveIntegrated(ctx context.Context, ln net.Listener, store *catalog.Store, engine *stream.Engine, manager *hls.Manager, registry *provision.Registry, edgeID string, guard *security.Controller, synchronizer *integration.Service) error {
+	return servePanel(ctx, ln, store, engine, manager, registry, edgeID, guard, synchronizer, nil, "", "laboratory")
+}
+func servePanel(ctx context.Context, ln net.Listener, store *catalog.Store, engine *stream.Engine, manager *hls.Manager, registry *provision.Registry, edgeID string, guard *security.Controller, synchronizer *integration.Service, users *accounts.Store, origin, mode string) error {
 	if synchronizer != nil {
 		syncCtx, stopSync := context.WithCancel(ctx)
 		syncDone := make(chan struct{})
@@ -146,7 +162,7 @@ func serveIntegrated(ctx context.Context, ln net.Listener, store *catalog.Store,
 	monitorDone := make(chan struct{})
 	go func() { defer close(monitorDone); observer.Run(monitorCtx) }()
 	defer func() { stopMonitor(); <-monitorDone }()
-	a := &api.API{Integration: synchronizer, Security: guard, Catalog: store, Streams: engine, HLS: manager, Monitoring: observer, Provision: registry, ProvisionEdgeID: edgeID}
+	a := &api.API{Mode: mode, Accounts: users, PublicOrigin: origin, Integration: synchronizer, Security: guard, Catalog: store, Streams: engine, HLS: manager, Monitoring: observer, Provision: registry, ProvisionEdgeID: edgeID}
 	server := a.Server()
 	server.TLSConfig = guard.TLSConfig()
 	server.ErrorLog = log.New(io.Discard, "", 0)

@@ -40,5 +40,5 @@ func (a *API) edgeHandler(w http.ResponseWriter, r *http.Request, started time.T
 		Started    time.Time           `json:"started_at"`
 		Uptime     float64             `json:"uptime_seconds"`
 		Features   map[string]bool     `json:"features"`
-	}{enrollment, identity, "dev", "laboratory", runtime.GOOS, runtime.GOARCH, started, time.Since(started).Seconds(), map[string]bool{"catalog": a.Catalog != nil, "stream": a.Streams != nil, "hls": a.HLS != nil, "provisioning": a.Provision != nil}})
+	}{enrollment, identity, "dev", a.mode(), runtime.GOOS, runtime.GOARCH, started, time.Since(started).Seconds(), map[string]bool{"catalog": a.Catalog != nil, "stream": a.Streams != nil, "hls": a.HLS != nil, "provisioning": a.Provision != nil}})
 }

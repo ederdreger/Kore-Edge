@@ -7,6 +7,7 @@ export async function readAPI(signal: AbortSignal): Promise<{ raw: Raw; problems
   await Promise.all(API_PATHS.map(async (path, i) => {
     try {
       const response = await fetch(path, { method: 'GET', signal, cache: 'no-store', credentials: 'same-origin' });
+      if (response.status===401) window.dispatchEvent(new Event('kore:unauthorized'));
       if (!response.ok) { problems.push(`${keys[i]}: HTTP ${response.status}`); return; }
       const value: unknown = await response.json();
       if (!value || typeof value !== 'object') throw new Error('invalid response');
@@ -16,7 +17,7 @@ export async function readAPI(signal: AbortSignal): Promise<{ raw: Raw; problems
       if (keys[i]==='monitoring'&&(!Array.isArray(obj.measurements)||!Array.isArray(obj.alerts)||typeof obj.timestamp!=='string')) throw new Error('invalid monitoring');
       if (keys[i]==='diagnostics'&&(!obj.cpu||!obj.memory||!obj.disk||typeof obj.timestamp!=='string')) throw new Error('invalid diagnostics');
       if (keys[i]==='interfaces'&&!Array.isArray(obj.interfaces)) throw new Error('invalid interfaces');
-      if (keys[i]==='session'&&(typeof obj.authenticated!=='boolean'||typeof obj.role!=='string'||!['viewer','operator','admin','enroller','metrics'].includes(obj.role)||!['local_readonly','mtls'].includes(String(obj.mode)))) throw new Error('invalid session');
+      if (keys[i]==='session'&&(typeof obj.authenticated!=='boolean'||typeof obj.role!=='string'||!['viewer','operator','admin','enroller','metrics'].includes(obj.role)||!['local_readonly','mtls','panel'].includes(String(obj.mode)))) throw new Error('invalid session');
       Object.assign(raw, { [keys[i]]: value });
     } catch { if (!signal.aborted) problems.push(`${keys[i]}: indisponível`); }
   }));

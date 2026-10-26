@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 )
 
+// OpenAudit creates a private, bounded audit writer for a local control module.
+func OpenAudit(directory string) (*Audit, error) { return openAudit(directory) }
+
 // PrivateDirectory validates a private runtime directory outside the working
 // tree. Callers must run from the checkout root when protecting the checkout.
 func PrivateDirectory(path string, create bool) error { return privateDirectory(path, create) }

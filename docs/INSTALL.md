@@ -1,3 +1,9 @@
+> Atualização de login/contas: siga [o passo a passo atual](INSTALACAO-SIMPLES.md)
+> e [o contrato de contas](modules/15-accounts.md). O gateway novo usa sessão e
+> login na página; trechos Basic Auth abaixo descrevem instalações legadas.
+> Para instalação nova, o assistente usa perfil production limpo; módulos
+> de transporte sintético continuam exclusivos de laboratório.
+
 # Instalador de laboratório — Ubuntu Server 24.04
 
 **Quer instalar respondendo perguntas?** Execute `bash scripts/setup.sh` e siga

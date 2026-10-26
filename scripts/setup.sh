@@ -27,9 +27,12 @@ printf '\n=== Kore Edge | Instalacao passo a passo ===\n'
 printf '%s\n' 'Voce vai escolher os dados; ao final podera instalar, simular ou cancelar.'
 printf '%s\n' 'O sistema ainda esta em homologacao e nao deve ser instalado em producao.'
 
-printf '\nETAPA 1/5 - Servidor de laboratorio\n'
-ask 'Este servidor e exclusivo para laboratorio/testes? [s/N]:'
+printf '\nETAPA 1/5 - Instalacao limpa\n'
+printf '%s\n' 'Sem canais de exemplo, trafego simulado ou credenciais padrao.'
+printf '%s\n' 'A instalacao exige revisao do ambiente antes de disponibilizar canais reais.'
+ask 'Preparar instalacao limpa neste servidor? [s/N]:'
 case "$answer" in s|S|sim|SIM) ;; *) printf '%s\n' 'Cancelado. Nenhuma alteracao realizada.'; exit 0 ;; esac
+mode_args=(--production)
 
 printf '\nETAPA 2/5 - O que instalar\n'
 printf '%s\n' '1) Completo: painel, sistema, FFmpeg e ferramentas WireGuard (recomendado)' '2) Basico: painel e API'
@@ -83,7 +86,7 @@ while :; do
   printf '%s\n' 'Use letras, numeros, hifen ou underscore, iniciando por letra (ate 32 caracteres).'
 done
 printf '%s\n' 'A senha sera solicitada com entrada oculta ao aplicar a instalacao.'
-printf '%s\n' 'HTTPS sera protegido por certificado local de laboratorio; o navegador exibira aviso de confianca.'
+printf '%s\n' 'HTTPS sera protegido por certificado local; o navegador exibira aviso de confianca.'
 printf '%s\n' 'Para dominio, o DNS deve apontar para esta VPS. A porta HTTPS precisa estar permitida no provedor/firewall.'
 # Select a free private upstream port; the operator confirms it in the summary.
 port=18080
@@ -105,11 +108,11 @@ while :; do
 done
 
 printf '\nETAPA 5/5 - Resumo e confirmacao\n'
-bash "$installer" --plan --profile "$profile" --listen "$listen" "${public_args[@]}" "${resume_args[@]}"
+bash "$installer" --plan "${mode_args[@]}" --profile "$profile" --listen "$listen" "${public_args[@]}" "${resume_args[@]}"
 if ((start)); then printf '%s\n' 'Inicio solicitado: SIM, somente o novo servico.'; else printf '%s\n' 'Inicio solicitado: NAO, apenas instalar os arquivos.'; fi
 printf '\nPainel da VPS: %s\n' "$(gateway_url "$public_host" "$public_port")"
 printf '%s\n' 'Pacotes existentes nao serao removidos. Arquivos existentes nao serao sobrescritos.'
-printf '\n1) Instalar agora no laboratorio\n2) Encerrar somente com a simulacao\n3) Cancelar\n'
+printf '\n1) Instalar agora\n2) Encerrar somente com a simulacao\n3) Cancelar\n'
 while :; do
   ask 'Sua escolha [1/2/3, Enter = 2]:'
   case "$answer" in
@@ -123,7 +126,7 @@ if [[ ! -t 0 || ! -t 1 ]]; then
   printf '%s\n' 'Para instalar, execute o assistente em um terminal interativo. Entrada por pipe nao instala.' >&2
   exit 1
 fi
-arguments=(--apply --lab-only --profile "$profile" --listen "$listen" "${public_args[@]}" "${resume_args[@]}")
+arguments=(--apply "${mode_args[@]}" --profile "$profile" --listen "$listen" "${public_args[@]}" "${resume_args[@]}")
 if ((start)); then arguments+=(--start); fi
 printf '\nIniciando instalacao. Aguarde a verificacao, os pacotes e os testes.\n'
 if ((EUID == 0)); then exec bash "$installer" "${arguments[@]}"; fi

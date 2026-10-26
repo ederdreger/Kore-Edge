@@ -9,11 +9,16 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"golang.org/x/crypto/bcrypt"
+	"kore-edge/internal/accounts"
+	"kore-edge/internal/api"
 	"math/big"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -57,6 +62,10 @@ func TestGatewayHostValidationAndRendering(t *testing.T) {
 // Opt-in test uses an extracted Nginx binary and private temporary files. No
 // package installation, systemd, public bind or host configuration is involved.
 func TestAuthenticatedHTTPSGateway(t *testing.T) {
+	t.Run("legacy", func(t *testing.T) { testHTTPSGateway(t, false) })
+	t.Run("panel", func(t *testing.T) { testHTTPSGateway(t, true) })
+}
+func testHTTPSGateway(t *testing.T, panel bool) {
 	nginx := os.Getenv("KORE_EDGE_NGINX")
 	if nginx == "" {
 		t.Skip("set KORE_EDGE_NGINX for real isolated HTTPS gateway test")
@@ -92,26 +101,57 @@ func TestAuthenticatedHTTPSGateway(t *testing.T) {
 	if tool := os.Getenv("KORE_EDGE_HTPASSWD"); tool != "" {
 		writeBcryptFixture(t, tool, filepath.Join(dir, "htpasswd"), "synthetic-password")
 	}
-	listener, e := net.Listen("tcp", "127.0.0.1:0")
-	if e != nil {
-		t.Fatal(e)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	backendDone := make(chan error, 1)
-	go func() { backendDone <- app.Serve(ctx, listener) }()
-	defer func() {
-		cancel()
-		if e := <-backendDone; e != nil {
-			t.Error(e)
-		}
-	}()
 	reservation, e := net.Listen("tcp", "127.0.0.1:0")
 	if e != nil {
 		t.Fatal(e)
 	}
 	port := strconv.Itoa(reservation.Addr().(*net.TCPAddr).Port)
 	reservation.Close()
-	render := exec.Command(bash(t), "-c", `source ../../scripts/gateway-lib.sh; render_gateway panel.example.com "$1" "$2" 0`, "render", port, listener.Addr().String())
+	listener, e := net.Listen("tcp", "127.0.0.1:0")
+	if e != nil {
+		t.Fatal(e)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	backendDone := make(chan error, 1)
+	go func() {
+		if !panel {
+			backendDone <- app.Serve(ctx, listener)
+			return
+		}
+		store, err := accounts.Open(filepath.Join(dir, "users"))
+		if err != nil {
+			backendDone <- err
+			return
+		}
+		defer store.Close()
+		hash, err := bcrypt.GenerateFromPassword([]byte("synthetic-password"), 10)
+		if err != nil {
+			backendDone <- err
+			return
+		}
+		if err = store.BootstrapHash("viewer", string(hash)); err != nil {
+			backendDone <- err
+			return
+		}
+		server := &http.Server{Handler: (&api.API{Accounts: store, PublicOrigin: "https://127.0.0.1:" + port}).Handler(), ReadHeaderTimeout: time.Second}
+		go func() { <-ctx.Done(); server.Close() }()
+		err = server.Serve(listener)
+		if err == http.ErrServerClosed {
+			err = nil
+		}
+		backendDone <- err
+	}()
+	defer func() {
+		cancel()
+		if e := <-backendDone; e != nil {
+			t.Error(e)
+		}
+	}()
+	renderer := "render_gateway"
+	if panel {
+		renderer = "render_panel_gateway"
+	}
+	render := exec.Command(bash(t), "-c", `source ../../scripts/gateway-lib.sh; "$3" panel.example.com "$1" "$2" 0`, "render", port, listener.Addr().String(), renderer)
 	data, e := render.Output()
 	if e != nil {
 		t.Fatal(e)
@@ -163,8 +203,12 @@ func TestAuthenticatedHTTPSGateway(t *testing.T) {
 		response, e := client.Get(base + "/healthz")
 		if e == nil {
 			response.Body.Close()
-			if response.StatusCode != 401 {
-				t.Fatal("anonymous gateway access accepted")
+			expected := 401
+			if panel {
+				expected = 200
+			}
+			if response.StatusCode != expected {
+				t.Fatal("unexpected anonymous health status")
 			}
 			break
 		}
@@ -172,6 +216,54 @@ func TestAuthenticatedHTTPSGateway(t *testing.T) {
 			t.Fatal("gateway unavailable")
 		}
 		time.Sleep(20 * time.Millisecond)
+	}
+
+	if panel {
+		client.Jar, _ = cookiejar.New(nil)
+		response, e := client.Get(base + "/api/v1/edge")
+		if e != nil {
+			t.Fatal(e)
+		}
+		response.Body.Close()
+		if response.StatusCode != 401 {
+			t.Fatal("anonymous data exposed")
+		}
+		login, _ := http.NewRequest("POST", base+"/api/v1/auth/login", strings.NewReader(`{"username":"viewer","password":"synthetic-password"}`))
+		login.Header.Set("Origin", base)
+		login.Header.Set("Content-Type", "application/json")
+		response, e = client.Do(login)
+		if e != nil {
+			t.Fatal(e)
+		}
+		var session struct {
+			CSRF string `json:"csrf"`
+		}
+		json.NewDecoder(response.Body).Decode(&session)
+		response.Body.Close()
+		if response.StatusCode != 200 || session.CSRF == "" {
+			t.Fatal("panel login failed", response.StatusCode)
+		}
+		response, e = client.Get(base + "/api/v1/users")
+		if e != nil {
+			t.Fatal(e)
+		}
+		response.Body.Close()
+		if response.StatusCode != 200 {
+			t.Fatal("authenticated users blocked")
+		}
+		request, _ := http.NewRequest("POST", base+"/api/v1/streams", strings.NewReader(`{}`))
+		request.Header.Set("Origin", base)
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("X-CSRF-Token", session.CSRF)
+		response, e = client.Do(request)
+		if e != nil {
+			t.Fatal(e)
+		}
+		response.Body.Close()
+		if response.StatusCode != 403 {
+			t.Fatal("operational write authorized by panel session")
+		}
+		return
 	}
 	for _, tc := range []struct {
 		method, path, password string
@@ -323,5 +415,33 @@ reset_kore_failed_units && printf 'ready-to-start\n'`, "startup", strconv.Itoa(t
 				t.Fatal("fresh startup blocked")
 			}
 		})
+	}
+}
+
+func TestPanelGatewayKeepsOriginAndAllowsAccountRequests(t *testing.T) {
+	command := exec.Command(bash(t), "-c", `source ../../scripts/gateway-lib.sh; render_panel_gateway panel.example.com 8443 127.0.0.1:18080 0`)
+	out, e := command.Output()
+	if e != nil {
+		t.Fatal(e)
+	}
+	s := string(out)
+	for _, forbidden := range []string{"auth_basic", "limit_except", "proxy_set_header Origin"} {
+		if strings.Contains(s, forbidden) {
+			t.Fatal("session login blocked", forbidden)
+		}
+	}
+	for _, required := range []string{"client_max_body_size 16k", "ssl_protocols TLSv1.2 TLSv1.3", "proxy_set_header Authorization \"\"", "proxy_set_header Host \"127.0.0.1:18080\""} {
+		if !strings.Contains(s, required) {
+			t.Fatal("missing proxy boundary", required)
+		}
+	}
+}
+func TestPanelUpdateAndRecoveryArePlanByDefault(t *testing.T) {
+	for _, script := range []string{"update-panel.sh", "reset-admin.sh"} {
+		command := exec.Command(bash(t), "../../scripts/"+script, "--plan")
+		out, e := command.CombinedOutput()
+		if e != nil || !strings.Contains(string(out), "Rollback") || !strings.Contains(string(out), "validacao") {
+			t.Fatal(script, string(out), e)
+		}
 	}
 }

@@ -1,0 +1,10 @@
+// @vitest-environment jsdom
+import { afterEach, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { UserManager } from './users';
+import { AccountContext } from './account-context';
+import type { PanelUser } from './account-context';
+afterEach(cleanup);
+const admin:PanelUser={id:'a'.repeat(32),username:'owner',role:'admin',disabled:false,revision:1};
+it('creates a user with password confirmation and no operational API calls',async()=>{const request=vi.fn(async(method:string)=>method==='GET'?new Response(JSON.stringify([admin])):new Response(null,{status:204}));render(<AccountContext.Provider value={{user:admin,request,reload:vi.fn(),logout:vi.fn()}}><UserManager/></AccountContext.Provider>);await screen.findByRole('button',{name:'Editar owner'});fireEvent.change(screen.getByLabelText('Usu\u00e1rio'),{target:{value:'reader'}});fireEvent.change(screen.getByLabelText('Senha da nova conta'),{target:{value:'new-synthetic-password'}});fireEvent.change(screen.getByLabelText('Sua senha atual'),{target:{value:'current-synthetic-password'}});fireEvent.click(screen.getByRole('button',{name:'Salvar altera\u00e7\u00f5es'}));await waitFor(()=>expect(request.mock.calls.some(c=>c[0]==='POST')).toBe(true));const call=(request.mock.calls as unknown as [string,string,unknown][]).find(c=>c[0]==='POST');expect(call).toEqual(['POST','/api/v1/users',{username:'reader',password:'new-synthetic-password',current_password:'current-synthetic-password',role:'viewer',disabled:false}]);expect((screen.getByLabelText('Sua senha atual') as HTMLInputElement).value).toBe('')});
+it('allows reader to edit only their own password',async()=>{const request=vi.fn();render(<AccountContext.Provider value={{user:{...admin,role:'viewer'},request,reload:vi.fn(),logout:vi.fn()}}><UserManager/></AccountContext.Provider>);expect(request).not.toHaveBeenCalled();expect(screen.queryByRole('button',{name:'Criar usu\u00e1rio'})).toBeNull();fireEvent.click(screen.getByRole('button',{name:'Alterar minha senha'}));expect((screen.getByLabelText('Fun\u00e7\u00e3o') as HTMLSelectElement).disabled).toBe(true)});

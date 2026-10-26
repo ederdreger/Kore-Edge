@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"kore-edge/internal/accounts"
 	"kore-edge/internal/catalog"
 	"kore-edge/internal/hls"
 	"kore-edge/internal/integration"
@@ -22,6 +23,7 @@ import (
 const MaxBytes = 64 * 1024
 
 type Config struct {
+	Accounts    accounts.Config    `yaml:"accounts"`
 	Integration integration.Config `yaml:"integration"`
 	Security    security.Config    `yaml:"security"`
 	Provision   provision.Config   `yaml:"provision"`
@@ -42,6 +44,12 @@ type Config struct {
 }
 
 func (c Config) Validate() error {
+	if c.Accounts.Validate() != nil || c.Accounts.Enabled && c.Security.EffectiveMode() != "local_readonly" {
+		return fmt.Errorf("invalid accounts configuration")
+	}
+	if c.Mode == "production" && (!c.Accounts.Enabled || c.Stream.Enabled || c.HLS.Enabled || c.Integration.Enabled || c.Provision.Enabled || len(c.Multicast.Outputs) > 0) {
+		return fmt.Errorf("production profile requires accounts and forbids synthetic media/mock modules")
+	}
 	if c.Integration.Validate() != nil || c.Integration.Enabled && c.Catalog.PartnerID == "" {
 		return fmt.Errorf("invalid integration configuration")
 	}
@@ -77,8 +85,8 @@ func (c Config) Validate() error {
 	if c.Version != 1 {
 		return fmt.Errorf("unsupported configuration version")
 	}
-	if c.Mode != "laboratory" {
-		return fmt.Errorf("only laboratory mode is supported")
+	if c.Mode != "laboratory" && c.Mode != "production" {
+		return fmt.Errorf("unsupported execution mode")
 	}
 	host, port, err := net.SplitHostPort(c.HTTP.Listen)
 	if err != nil {

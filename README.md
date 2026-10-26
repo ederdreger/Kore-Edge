@@ -2,6 +2,28 @@
 
 Repositório público: [ederdreger/Kore-Edge](https://github.com/ederdreger/Kore-Edge).
 
+## Login, usuários e atualização de instalação existente
+
+O painel usa sessão individual HTTPS e senhas bcrypt. Instalações novas ficam
+sem canais, catálogo de exemplo ou tráfego simulado. O perfil `production` exige
+contas e rejeita módulos sintéticos/mock; isso não substitui a homologação de
+transporte real descrita na Fase 14.
+
+Para uma instalação já em funcionamento, revise e aplique a atualização guiada:
+
+```sh
+git pull --ff-only
+bash scripts/update-panel.sh --plan
+sudo bash scripts/update-panel.sh --apply
+```
+
+Ela mostra endereços detectados e pede confirmação antes de reiniciar somente os
+dois serviços Kore Edge. Preserva certificado e o administrador atual, cria backup
+e faz rollback se a validação falhar. Dados anteriores são preservados; a nova
+configuração de painel desabilita catálogo, streams e integrações de teste.
+Não execute o instalador novo sobre a instalação existente.
+Veja [passo a passo](docs/INSTALACAO-SIMPLES.md) e [contrato de contas](docs/modules/15-accounts.md).
+
 ## Instalação Ubuntu Server 24.04
 
 Use o **assistente de instalação**, que solicita os dados por etapas:
@@ -12,9 +34,9 @@ cd Kore-Edge
 bash scripts/setup.sh
 ```
 
-Ele pergunta se a VPS é de laboratório, o que instalar, **domínio ou IP da VPS**,
+Ele confirma a instalação limpa, pergunta o que instalar, **domínio ou IP da VPS**,
 porta HTTPS, usuário do painel e se deve iniciar o serviço. O acesso externo usa
-HTTPS com senha; a API permanece privada. O certificado inicial é de laboratório
+HTTPS com login individual; a API permanece privada. O certificado inicial é local
 e causa aviso de confiança no navegador. Ao final mostra o resumo: escolha **1** para
 instalar, **2** para apenas simular ou **3** para cancelar. Se necessário, o sudo
 solicita a senha do seu usuário administrador.
@@ -75,10 +97,10 @@ sem aplicação automática. Emissão/revogação via ferramenta offline
 `/api/v1/provisioning/register`. Desabilitado por padrão. Veja
 [procedimento e limites da Fase 10](docs/modules/10-provision.md).
 
-Fase 09: dashboard React/TypeScript incorporada ao agente em `/`, com navegação,
-busca, filtros, seleção e páginas de canais/Edge. APIs são consultadas somente
-por GET. A prévia opt-in `/?demo=1#dashboard` usa dados ilustrativos explicitamente
-marcados; modo padrão mostra apenas observações do agente ou indisponibilidade.
+Dashboard React/TypeScript incorporada ao agente em `/`, com login animado,
+navegação, busca e filtros. A demonstração visual foi removida: `?demo=1`
+não ativa exemplos. Métricas mostram observações do agente ou indisponibilidade.
+O menu **Usuários** permite criar contas e alterar senhas, inclusive do administrador.
 Build frontend: `npm --prefix web ci` e `npm --prefix web run build`, antes do
 build Go. Veja [execução e limites da Fase 09](docs/modules/09-web.md).
 
