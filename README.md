@@ -2,6 +2,14 @@
 
 Repositório público: [ederdreger/Kore-Edge](https://github.com/ederdreger/Kore-Edge).
 
+## Credenciais WireGuard para Kore Play
+
+No menu **WireGuard**, administradores podem gerar a identidade do Edge e preparar
+os dados do peer para cadastro no Kore Play. A chave privada permanece no servidor;
+somente chave pública e bloco `[Peer]` são apresentados. Exige senha atual e dados
+de rede confirmados, sem ativar túnel ou alterar rotas. Atualizações preservam a
+identidade já gerada. Veja [passo a passo e limites](docs/modules/16-wireguard-credentials.md).
+
 ## Login, usuários e atualização de instalação existente
 
 O painel usa sessão individual HTTPS e senhas bcrypt. Instalações novas ficam

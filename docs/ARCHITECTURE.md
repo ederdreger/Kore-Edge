@@ -83,8 +83,16 @@ de mídia com a matriz.
 
 ## Contas locais e painel limpo
 
+Preparação WireGuard autenticada: os endpoints `/api/v1/wireguard/setup*` exigem
+administrador, CSRF e confirmação de senha para geração/alteração. Persistem a
+identidade X25519 e proposta de peer em subdiretório privado de accounts, sem
+executar ações do sistema. A chave privada não faz parte dos DTOs. O bloco de
+peer exportado é público e o inventário real continua separado. Contrato em
+[credenciais WireGuard](modules/16-wireguard-credentials.md).
+
 Accounts envolve o guard HTTP existente, autentica sessões HTTPS e intercepta
-somente auth/users. Nginx preserva Origin; cookies Secure/HttpOnly e CSRF protegem
+auth/users; preparação WireGuard usa autorização administrativa específica.
+Nginx preserva Origin; cookies Secure/HttpOnly e CSRF protegem
 mutações. Papéis admin/viewer não concedem escrita nas APIs operacionais.
 Base privada, hashes bcrypt, revisões para revogação, auditoria sem segredos e
 locks exclusivos. Perfil production exige contas e bloqueia módulos sintéticos/mock.

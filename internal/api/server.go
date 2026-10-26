@@ -22,19 +22,20 @@ import (
 )
 
 type API struct {
-	Mode                string
-	Accounts            *accounts.Store
-	PublicOrigin        string
-	Integration         *integration.Service
-	Security            *security.Controller
-	Provision           *provision.Registry
-	ProvisionEdgeID     string
-	Monitoring          *monitoring.Service
-	HLS                 *hls.Manager
-	MulticastInterfaces func() ([]multicast.Interface, error)
-	ready               atomic.Bool
-	Catalog             *catalog.Store
-	Streams             *stream.Engine
+	WireGuardCredentials *wireguard.CredentialStore
+	Mode                 string
+	Accounts             *accounts.Store
+	PublicOrigin         string
+	Integration          *integration.Service
+	Security             *security.Controller
+	Provision            *provision.Registry
+	ProvisionEdgeID      string
+	Monitoring           *monitoring.Service
+	HLS                  *hls.Manager
+	MulticastInterfaces  func() ([]multicast.Interface, error)
+	ready                atomic.Bool
+	Catalog              *catalog.Store
+	Streams              *stream.Engine
 }
 
 func (a *API) SetReady(ready bool) { a.ready.Store(ready) }
@@ -46,7 +47,14 @@ func (a *API) Handler() http.Handler {
 	}
 	handler := guard.Wrap(a.routes())
 	if a.Accounts != nil {
-		return a.Accounts.Wrap(a.PublicOrigin, handler)
+		panel := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/api/v1/wireguard/setup" || r.URL.Path == "/api/v1/wireguard/setup/identity" || r.URL.Path == "/api/v1/wireguard/setup/peer" {
+				a.wireGuardSetup(w, r)
+				return
+			}
+			handler.ServeHTTP(w, r)
+		})
+		return a.Accounts.Wrap(a.PublicOrigin, panel)
 	}
 	return handler
 }

@@ -72,6 +72,13 @@ digital. O login aparece na página, sem janela Basic Auth. Instalação limpa n
 substitui homologação de IPTV real: módulos sintéticos/mock ficam desabilitados
 no perfil production. Não há conta ou senha padrão.
 
+## Preparar integração WireGuard
+
+Para preparar a integração com Kore Play, após atualizar abra **WireGuard**, gere
+a identidade com sua senha atual e copie a chave pública. Preencha os dados do
+peer confirmados pelo Kore Play e copie o bloco público. Isso não ativa a VPN;
+veja [o passo a passo WireGuard](modules/16-wireguard-credentials.md).
+
 ## Recuperar o único administrador
 
 ```sh

@@ -1,5 +1,10 @@
 # Fase 03 — WireGuard
 
+> Evolução posterior: a geração persistente de credenciais e o formulário
+> autenticado de peer foram adicionados no [módulo de credenciais](16-wireguard-credentials.md).
+> As limitações de geração/persistência descritas abaixo registram a Fase 03
+> original. Aplicação de túnel e alterações de rede continuam fora do módulo.
+
 ## Entrega e uso local
 
 `internal/wireguard` separa planejamento puro de inventário de leitura. Não há
