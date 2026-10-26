@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useAccount } from './account-context';
+import type { Status } from './wireguard-setup';
 
 type Setup={public_key:string;revision:number;settings:unknown};
 type Local={interface:string;listen_port:number;keepalive_seconds:number};
 type Connection={stage:string;applied:boolean;handshake_recent:boolean;can_rollback:boolean;error?:string};
 type Plan={digest:string;config:{interface:string;address:string;listen_port:number;public_key:string;peers:unknown[]};routes_added:string[];routes_removed:string[]};
 const labels:Record<string,string>={not_applied:'Túnel não aplicado',applying:'Criando conexão…',rolling_back:'Desfazendo aplicação…',applied_waiting_handshake:'Aplicado · aguardando handshake',handshake_recent:'Handshake recente verificado',failed:'Aplicação falhou · confira o rollback',recovery_required:'Revisão operacional necessária',configuration_changed:'Configuração salva difere da aplicada',interface_absent_or_changed:'Interface ausente ou alterada',interface_down:'Interface desativada',previous_configuration_restored:'Configuração anterior restaurada'};
-export function WireGuardConnection({setup,local,onSync}:{setup:Setup;local:Local;onSync:(value:any)=>void}){
+export function WireGuardConnection({setup,local,onSync}:{setup:Setup;local:Local;onSync:(value:Status)=>void}){
  const account=useAccount();const[connection,setConnection]=useState<Connection|null>(null);const[plan,setPlan]=useState<Plan|null>(null);const[message,setMessage]=useState('');const[open,setOpen]=useState(false);const[code,setCode]=useState('');const[password,setPassword]=useState('');const[confirmed,setConfirmed]=useState(false);const[busy,setBusy]=useState(false);const[undo,setUndo]=useState(false);
  const running=connection?.stage==='applying'||connection?.stage==='rolling_back';
  async function request(method:string,suffix:string,body?:unknown){if(!account)throw new Error('Entre como administrador.');const response=await account.request(method,'/api/v1/wireguard/setup/connection/'+suffix,body);if(!response.ok)throw new Error(response.status===409?'O plano ou o cadastro mudou. Recarregue e revise novamente.':'Operação não concluída. Confira sua senha e a habilitação do auxiliar WireGuard neste servidor.');return response.json()}
