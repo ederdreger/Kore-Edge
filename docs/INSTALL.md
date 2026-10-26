@@ -33,8 +33,9 @@ FFprobe para HLS, e wireguard-tools disponibiliza o inventário `wg`. Instalar a
 ferramenta não concede NET_ADMIN nem configura peers. O inventário pode permanecer
 indisponível sem privilégios; isso não é mascarado como conexão ativa.
 Dashboard já compilada é incorporada no Go: Node/npm não são necessários no
-servidor. Não são instalados Nginx ou TSDuck: o código atual serve HTTP/HLS em Go
-e não depende de TSDuck. Proxy ou rede de mídia exigem projeto/validação separados.
+servidor. No modo VPS, são adicionados nginx, openssl e apache2-utils para HTTPS
+com senha. Sem `--public-host`, o modo por parâmetros continua local e não instala
+Nginx. TSDuck não é uma dependência do código atual.
 
 Fontes de referência: [pacotes Ubuntu](https://packages.ubuntu.com/),
 [GitHub CLI](https://cli.github.com/manual/gh_repo_create) e
@@ -116,6 +117,52 @@ O YAML inicial não contém chave, token nem dados de parceiro/cliente.
 
 ## 3. Inicialização e validação
 
+### Domínio/IP da VPS
+
+O assistente informa `--public-host`, `--public-port` e `--gateway-user` e escolhe
+uma porta privada livre entre 18080 e 18179, confirmada no resumo. O backend fica
+em 127.0.0.1; a entrada pública é `kore-edge-gateway.service`, com Nginx como
+kore-edge e somente CAP_NET_BIND_SERVICE. Não altera o bind ou RBAC da API.
+Gateway aceita somente GET/HEAD e remove Authorization, Origin e headers de
+identidade encaminhados ao backend readonly. Não substitui mTLS para mutações.
+
+Exige instalação nova, sem Nginx/configuração existente. Antes do APT, a unidade
+nginx.service padrão é mascarada para impedir seu início com o site padrão;
+continua mascarada, pois o serviço dedicado usa configuração própria. Não há
+adoção de sites existentes. Falha pode deixar essa nova máscara para revisão.
+
+Certificado autoassinado com SAN de domínio/IP, chave e bcrypt ficam em
+`/etc/kore-edge/gateway` (0700, arquivos 0600, dono kore-edge). Senha é pedida no
+TTY com confirmação, nunca em argv, ambiente exportado ou logs. Access/error logs
+de requisições ficam desligados. Não há ACME automático; certificado vale 365 dias
+e sua renovação é manual. Conferir a impressão digital SHA-256 exibida ao final.
+O navegador exibirá aviso de confiança até configurar um certificado confiável.
+
+Gateway escuta interfaces públicas na porta confirmada, IPv4/IPv6 quando disponível.
+DNS e firewall do provedor não são alterados. Validar resolução, conectividade,
+certificado, pedido de credenciais, recusa sem senha e painel de leitura por HTTPS.
+Processo ativo não comprova acesso pela internet. Nginx valida config antes de iniciar.
+
+Rollback adicional, somente dos serviços criados nesta instalação:
+
+```sh
+sudo systemctl stop kore-edge-gateway.service
+sudo systemctl disable kore-edge-gateway.service
+sudo rm -- /etc/systemd/system/kore-edge-gateway.service
+sudo systemctl daemon-reload
+```
+
+Preservar certificados/dados. Antes de retirar a máscara criada para Nginx,
+confirmar que o serviço padrão ficará inativo/desabilitado para não publicar o
+site padrão. Revisar `systemctl disable nginx.service` e `systemctl unmask nginx.service`
+somente no rollback autorizado; não aplicar a sites preexistentes.
+
+Referências: [autenticação Nginx](https://nginx.org/en/docs/http/ngx_http_auth_basic_module.html),
+[TLS Nginx](https://nginx.org/en/docs/http/ngx_http_ssl_module.html),
+[htpasswd](https://httpd.apache.org/docs/current/programs/htpasswd.html).
+
+### Modo local por parâmetros
+
 Para solicitar iniciar apenas o novo serviço na primeira instalação, acrescente
 `--start` ao comando. O instalador aguarda readiness por uma janela limitada;
 se não confirmar, para somente esse novo serviço e preserva os arquivos.
@@ -132,7 +179,7 @@ curl --noproxy '*' --globoff --fail 'http://<LOOPBACK_IP:PORTA_CONFIRMADOS>/heal
 curl --noproxy '*' --globoff --fail 'http://<LOOPBACK_IP:PORTA_CONFIRMADOS>/readyz'
 ```
 
-Dashboard no mesmo listener. Para acessar de outro computador, usar túnel SSH com
+Sem gateway, dashboard no listener local. Para acessar de outro computador, usar túnel SSH com
 ports explicitamente revisadas; o agente não deve ser exposto em 0.0.0.0 como
 atalho. Health/readiness não comprovam mídia, VPN ou homologação.
 

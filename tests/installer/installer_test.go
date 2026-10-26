@@ -53,34 +53,34 @@ func runWizard(t *testing.T, input string, detect bool) (string, error) {
 	return string(out), e
 }
 func TestWizardGuidedSimulation(t *testing.T) {
-	output, e := runWizard(t, "s\n\n1\n18080\ns\n2\n", true)
+	output, e := runWizard(t, "s\n\npainel.example.com\n8443\n\ns\n2\n", true)
 	if e != nil {
 		t.Fatal(output, e)
 	}
-	for _, required := range []string{"ETAPA 1/5", "ETAPA 2/5", "ETAPA 3/5", "ETAPA 4/5", "ETAPA 5/5", "detectados", "ffmpeg", "127.0.0.1:18080", "Inicio solicitado: SIM", "Simulacao concluida"} {
+	for _, required := range []string{"ETAPA 1/5", "ETAPA 2/5", "ETAPA 3/5", "ETAPA 4/5", "ETAPA 5/5", "Dominio ou IP da VPS", "ffmpeg", "https://painel.example.com:8443/", "127.0.0.1:18080", "Inicio solicitado: SIM", "Simulacao concluida"} {
 		if !strings.Contains(output, required) {
 			t.Fatalf("missing wizard step %s: %s", required, output)
 		}
 	}
 }
 func TestWizardRetriesAndManualAddress(t *testing.T) {
-	output, e := runWizard(t, "s\n9\n2\n5\n1\n0\n18081\nn\n2\n", true)
-	if e != nil || !strings.Contains(output, "Digite 1 ou 2") || !strings.Contains(output, "Endereco ou porta invalidos") || !strings.Contains(output, "127.0.0.1:18081") {
+	output, e := runWizard(t, "s\n9\n2\nhttp://bad/\n203.0.113.10\n0\n8443\nadmin\nn\n2\n", true)
+	if e != nil || !strings.Contains(output, "Digite 1 ou 2") || !strings.Contains(output, "Endereco invalido") || !strings.Contains(output, "https://203.0.113.10:8443/") {
 		t.Fatal(output, e)
 	}
-	output, e = runWizard(t, "s\n1\n127.0.0.1\n18080\nn\n2\n", false)
-	if e != nil || !strings.Contains(output, "Nao foi possivel detectar") || !strings.Contains(output, "Simulacao concluida") {
+	output, e = runWizard(t, "s\n1\n2001:db8::10\n8443\nadmin\nn\n2\n", false)
+	if e != nil || !strings.Contains(output, "https://[2001:db8::10]:8443/") || !strings.Contains(output, "Simulacao concluida") {
 		t.Fatal(output, e)
 	}
 }
 func TestWizardCancelEOFAndPipeNeverInstall(t *testing.T) {
-	for _, input := range []string{"n\n", "s\n", "s\n1\n1\n18080\nn\n3\n"} {
+	for _, input := range []string{"n\n", "s\n", "s\n1\npainel.example.com\n8443\n\nn\n3\n"} {
 		output, e := runWizard(t, input, true)
 		if e != nil || !strings.Contains(strings.ToLower(output), "cancelad") {
 			t.Fatal(output, e)
 		}
 	}
-	output, e := runWizard(t, "s\n1\n1\n18080\ns\n1\n", true)
+	output, e := runWizard(t, "s\n1\npainel.example.com\n8443\n\ns\n1\n", true)
 	if e == nil || !strings.Contains(output, "terminal interativo") {
 		t.Fatal("piped input could apply", output, e)
 	}
@@ -97,7 +97,7 @@ func run(t *testing.T, args ...string) (string, error) {
 func TestInstallerSyntax(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	for _, script := range []string{"install.sh", "setup.sh"} {
+	for _, script := range []string{"install.sh", "setup.sh", "gateway-lib.sh"} {
 		command := exec.CommandContext(ctx, bash(t), "-n", "../../scripts/"+script)
 		if output, e := command.CombinedOutput(); e != nil {
 			t.Fatal("invalid Bash syntax", string(output))

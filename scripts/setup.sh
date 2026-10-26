@@ -10,6 +10,7 @@ if (($#)); then
   printf '%s\n' 'Opcao desconhecida. Execute: bash scripts/setup.sh' >&2
   exit 1
 fi
+source "$(dirname -- "$installer")/gateway-lib.sh"
 answer=''
 ask() {
   printf '\n%s ' "$1"
@@ -34,51 +35,46 @@ while :; do
 done
 
 printf '\nETAPA 3/5 - Acesso ao painel\n'
-printf '%s\n' 'O painel ficara acessivel somente neste servidor (loopback).'
-printf '%s\n' 'Para acessar de outro computador, use o tunel SSH explicado no guia simples.'
-addresses=()
-if command -v ip >/dev/null 2>&1; then
-  while IFS= read -r candidate; do
-    case "$candidate" in
-      127.*|::1) addresses+=("$candidate") ;;
-    esac
-  done < <(ip -o address show scope host 2>/dev/null | awk '{split($4,a,"/"); print a[1]}' | sort -u)
-fi
-if ((${#addresses[@]})); then
-  printf '%s\n' 'Enderecos locais detectados:'
-  for index in "${!addresses[@]}"; do printf '%d) %s\n' "$((index+1))" "${addresses[$index]}"; done
-  while :; do
-    ask 'Escolha o numero do endereco local:'
-    if [[ $answer =~ ^[1-9][0-9]{0,2}$ ]] && ((answer <= ${#addresses[@]})); then
-      address=${addresses[$((answer-1))]}; break
-    fi
-    printf '%s\n' 'Selecione um dos numeros exibidos.'
-  done
-else
-  printf '%s\n' 'Nao foi possivel detectar o loopback. Confira o endereco local no servidor.'
-  ask 'Digite o IP de loopback confirmado (IPv4 127.x.x.x ou ::1):'
-  address=$answer
-fi
+printf '%s\n' 'Informe o dominio apontado para a VPS ou o IP da VPS (sem http://, porta ou caminho).'
 while :; do
-  ask 'Qual porta deseja usar para o painel? (exemplo: 18080):'
-  port=$answer
-  if [[ $address == ::1 ]]; then listen="[::1]:$port"; else listen="$address:$port"; fi
-  # Reuse the installer's address/port validation without any host mutation.
-  if bash "$installer" --plan --profile "$profile" --listen "$listen" >/dev/null 2>&1; then
-    if command -v ss >/dev/null 2>&1 && [[ $port =~ ^[0-9]+$ ]]; then
-      if ss -H -ltn "sport = :$port" 2>/dev/null | grep -q .; then
-        printf '%s\n' 'Essa porta esta ocupada. Escolha outra.'
-        continue
-      fi
+  ask 'Dominio ou IP da VPS:'
+  public_host=${answer,,}
+  public_host=${public_host#[}; public_host=${public_host%]}
+  if valid_public_host "$public_host"; then break; fi
+  printf '%s\n' 'Endereco invalido. Use dominio, IPv4 ou IPv6 da VPS; nao use localhost/loopback.'
+done
+while :; do
+  ask 'Porta HTTPS do painel (exemplo: 443 ou 8443):'
+  public_port=$answer
+  if valid_gateway_port "$public_port"; then
+    if command -v ss >/dev/null 2>&1 && ss -H -ltn "sport = :$public_port" 2>/dev/null | grep -q .; then
+      printf '%s\n' 'Essa porta esta ocupada. Escolha outra.'; continue
     fi
     break
   fi
-  printf '%s\n' 'Endereco ou porta invalidos. A porta deve ser de 1 a 65535, sem zero inicial.'
-  if ((${#addresses[@]} == 0)); then
-    ask 'Digite novamente o IP de loopback confirmado:'
-    address=$answer
-  fi
+  printf '%s\n' 'Porta invalida. Digite um numero de 1 a 65535.'
 done
+while :; do
+  ask 'Usuario para entrar no painel [Enter = admin]:'
+  gateway_user=${answer:-admin}
+  [[ $gateway_user =~ ^[a-zA-Z][a-zA-Z0-9_-]{0,31}$ ]] && break
+  printf '%s\n' 'Use letras, numeros, hifen ou underscore, iniciando por letra (ate 32 caracteres).'
+done
+printf '%s\n' 'A senha sera solicitada com entrada oculta ao aplicar a instalacao.'
+printf '%s\n' 'HTTPS sera protegido por certificado local de laboratorio; o navegador exibira aviso de confianca.'
+printf '%s\n' 'Para dominio, o DNS deve apontar para esta VPS. A porta HTTPS precisa estar permitida no provedor/firewall.'
+# Select a free private upstream port; the operator confirms it in the summary.
+port=18080
+while ((port < 18180)); do
+  if [[ $port == "$public_port" ]]; then port=$((port+1)); continue; fi
+  if command -v ss >/dev/null 2>&1 && ss -H -ltn "sport = :$port" 2>/dev/null | grep -q .; then
+    port=$((port+1)); continue
+  fi
+  break
+done
+((port < 18180)) || { printf '%s\n' 'Nao foi encontrada uma porta interna livre.' >&2; exit 1; }
+listen="127.0.0.1:$port"
+public_args=(--public-host "$public_host" --public-port "$public_port" --gateway-user "$gateway_user")
 
 printf '\nETAPA 4/5 - Inicio do painel\n'
 while :; do
@@ -87,9 +83,9 @@ while :; do
 done
 
 printf '\nETAPA 5/5 - Resumo e confirmacao\n'
-bash "$installer" --plan --profile "$profile" --listen "$listen"
+bash "$installer" --plan --profile "$profile" --listen "$listen" "${public_args[@]}"
 if ((start)); then printf '%s\n' 'Inicio solicitado: SIM, somente o novo servico.'; else printf '%s\n' 'Inicio solicitado: NAO, apenas instalar os arquivos.'; fi
-printf '\nEndereco escolhido para o painel: http://%s/\n' "$listen"
+printf '\nPainel da VPS: %s\n' "$(gateway_url "$public_host" "$public_port")"
 printf '%s\n' 'Pacotes existentes nao serao removidos. Arquivos existentes nao serao sobrescritos.'
 printf '\n1) Instalar agora no laboratorio\n2) Encerrar somente com a simulacao\n3) Cancelar\n'
 while :; do
@@ -105,7 +101,7 @@ if [[ ! -t 0 || ! -t 1 ]]; then
   printf '%s\n' 'Para instalar, execute o assistente em um terminal interativo. Entrada por pipe nao instala.' >&2
   exit 1
 fi
-arguments=(--apply --lab-only --profile "$profile" --listen "$listen")
+arguments=(--apply --lab-only --profile "$profile" --listen "$listen" "${public_args[@]}")
 if ((start)); then arguments+=(--start); fi
 printf '\nIniciando instalacao. Aguarde a verificacao, os pacotes e os testes.\n'
 if ((EUID == 0)); then exec bash "$installer" "${arguments[@]}"; fi

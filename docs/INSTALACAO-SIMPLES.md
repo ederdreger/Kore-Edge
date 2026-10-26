@@ -31,9 +31,10 @@ bash scripts/setup.sh
 1. **Servidor de laboratório:** responda `s` somente se for um servidor de testes.
 2. **O que instalar:** escolha `1` para o sistema completo com ferramentas de mídia,
    ou `2` para apenas painel e API. Enter escolhe o completo.
-3. **Acesso ao painel:** selecione o número de um endereço local detectado.
-   Digite a porta que deseja usar. O assistente verifica o formato e, quando a
-   ferramenta está disponível, avisa se a porta já está ocupada.
+3. **Acesso ao painel:** digite o domínio apontado para a VPS ou o IP da VPS,
+   sem `http://`, sem porta e sem caminho. Depois informe a porta HTTPS e o
+   usuário para entrar no painel. Não escolha IP de loopback/localhost.
+   A porta interna da API é escolhida separadamente e aparece no resumo.
 4. **Início do painel:** responda `s` para iniciar ao terminar, ou `n` para somente
    preparar a instalação. Enter significa não iniciar.
 5. **Resumo:** confira os dados e escolha `1` para instalar, `2` para apenas simular
@@ -47,34 +48,35 @@ exige um terminal interativo; colar respostas por pipe não instala nada.
 
 Se aparecer uma solicitação do sudo, digite a senha do **seu usuário administrador**.
 É normal não aparecerem caracteres enquanto você digita a senha.
-O assistente não pede senha de GitHub, token da matriz ou chave WireGuard.
+O assistente também pede uma senha para o painel HTTPS e sua confirmação, com
+entrada oculta. Use de 12 a 72 caracteres (até 72 bytes), sem dois-pontos.
+Essa senha não é enviada ao GitHub nem passada como argumento de comando.
+Não são solicitados token da matriz ou chave WireGuard.
 
 Serão verificados o sistema e os pacotes, e o código será compilado e testado.
 Isso pode demorar. Se um teste falhar, a instalação será interrompida; não ignore
 o erro nem remova os testes. Uma instalação existente não será sobrescrita.
 
-No final, o programa mostrará o endereço local do painel. O perfil completo
+No final, o programa mostrará `https://DOMINIO_OU_IP:PORTA/`. O perfil completo
 instala as ferramentas, mas não cria canais, túneis ou catálogo automaticamente.
 O serviço não fica habilitado para iniciar automaticamente no boot.
 
 ## 5. Abra o painel
 
-Se escolheu iniciar o serviço, abra o endereço mostrado **no próprio servidor**.
-Se está conectado por SSH, esse endereço pertence ao Ubuntu, não ao seu computador.
-O painel continua restrito ao acesso local por segurança.
+Se escolheu iniciar, abra a URL HTTPS mostrada no seu computador. Digite o usuário
+e a senha cadastrados quando o navegador solicitar. Não precisa de túnel SSH.
 
-Para abrir no computador que usa para acessar o servidor, configure o encaminhamento
-de porta no seu cliente SSH. Use a porta que você escolheu como porta de origem e
-o mesmo endereço local do Ubuntu como destino. No OpenSSH, a forma é:
+O certificado inicial é **autoassinado para laboratório**. O navegador vai avisar
+que a autoridade não é confiável. Confira a impressão digital exibida no terminal
+antes de confiar nesse certificado. Não é um certificado público Let's Encrypt;
+para acesso sem aviso, será necessário configurar um certificado confiável.
 
-```text
-ssh -N -L PORTA_NO_SEU_COMPUTADOR:IP_LOCAL_DO_UBUNTU:PORTA_DO_PAINEL USUARIO@SERVIDOR
-```
+Se usar domínio, configure antes o DNS para apontar para a VPS. A porta HTTPS
+escolhida precisa estar permitida nas regras do provedor/firewall. O instalador
+não modifica essas regras. Se já houver Nginx, ele recusa sobrescrever os sites.
 
-Esses nomes representam os seus dados, não devem ser colados literalmente.
-O comando é executado no seu computador. Mantenha o terminal SSH aberto e acesse
-`http://localhost:PORTA_NO_SEU_COMPUTADOR` no navegador. Não abra firewall nem
-troque o listener para `0.0.0.0` como atalho.
+O acesso externo é de **leitura**. A API continua em loopback e não é exposta
+diretamente. O login do gateway não concede permissões de operação de streams.
 
 Para detalhes de pré-verificação, arquivos criados e rollback, consulte
 [o guia técnico](INSTALL.md). O assistente não foi aplicado em um host de produção.

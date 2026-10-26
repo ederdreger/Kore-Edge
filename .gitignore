@@ -23,3 +23,6 @@ selection.json
 operations.lock
 policy.json
 signed-mock-catalog.json
+htpasswd
+.htpasswd
+*.crt

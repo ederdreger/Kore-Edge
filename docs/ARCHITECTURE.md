@@ -70,3 +70,12 @@ locais não certificam o data plane físico ou a compatibilidade com a matriz.
 O [checklist de homologação](acceptance/phase14-report.md) registra NO-GO enquanto
 existirem falhas de estabilidade, validações obrigatórias pendentes ou ausência
 de aprovação humana do laboratório. Nenhum teste aprova uma implantação sozinho.
+
+## Entrada HTTPS da VPS
+
+O assistente aceita domínio/IP da VPS e prepara um gateway Nginx HTTPS com senha
+para leitura do painel. A API permanece em loopback/read-only, sem identidade por
+headers e sem mutações pelo gateway. Certificados locais são de laboratório;
+não há ACME automático nem alteração de firewall/DNS. Regras e rollback em
+[INSTALL](INSTALL.md). Isso não equivale a homologação para produção ou integração
+de mídia com a matriz.

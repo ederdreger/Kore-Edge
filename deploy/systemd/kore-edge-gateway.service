@@ -1,0 +1,36 @@
+[Unit]
+Description=Kore Edge authenticated HTTPS laboratory gateway
+Requires=kore-edge.service
+After=kore-edge.service network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=kore-edge
+Group=kore-edge
+ExecStartPre=/usr/sbin/nginx -t -q -c /etc/kore-edge/gateway/nginx.conf
+ExecStart=/usr/sbin/nginx -c /etc/kore-edge/gateway/nginx.conf -g "daemon off;"
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+ReadWritePaths=/var/cache/kore-edge/gateway
+MemoryMax=128M
+TasksMax=32
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -12,8 +12,10 @@ cd Kore-Edge
 bash scripts/setup.sh
 ```
 
-Ele pergunta se o servidor é de laboratório, o que instalar, endereço local,
-porta e se deve iniciar o painel. Ao final mostra o resumo: escolha **1** para
+Ele pergunta se a VPS é de laboratório, o que instalar, **domínio ou IP da VPS**,
+porta HTTPS, usuário do painel e se deve iniciar o serviço. O acesso externo usa
+HTTPS com senha; a API permanece privada. O certificado inicial é de laboratório
+e causa aviso de confiança no navegador. Ao final mostra o resumo: escolha **1** para
 instalar, **2** para apenas simular ou **3** para cancelar. Se necessário, o sudo
 solicita a senha do seu usuário administrador.
 
