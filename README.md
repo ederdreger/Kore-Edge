@@ -21,6 +21,8 @@ Ela mostra endereços detectados e pede confirmação antes de reiniciar somente
 dois serviços Kore Edge. Preserva certificado e o administrador atual, cria backup
 e faz rollback se a validação falhar. Dados anteriores são preservados; a nova
 configuração de painel desabilita catálogo, streams e integrações de teste.
+O teste HTTPS aguarda o listener iniciar e distingue indisponibilidade, erro TLS
+e resposta HTTP inesperada, mantendo a verificação do certificado.
 Não execute o instalador novo sobre a instalação existente.
 Veja [passo a passo](docs/INSTALACAO-SIMPLES.md) e [contrato de contas](docs/modules/15-accounts.md).
 

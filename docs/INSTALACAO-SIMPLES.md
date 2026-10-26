@@ -27,6 +27,13 @@ usuários nunca é sobrescrita. Gateway personalizado é recusado para revisão 
 Não execute o instalador novo sobre uma instalação existente.
 
 Se a validação falhar, o script restaura configuração e release anteriores.
+Se uma versão anterior mostrou apenas `HTTPS nao bloqueia acesso anonimo`, essa
+mensagem não distingue falha de conexão de falha TLS ou HTTP. Atualize o checkout
+e execute novamente o plano e a atualização acima: o probe agora aguarda a abertura
+da porta e informa a categoria da falha. Não apague a base de usuários ou o backup.
+`curl=60` indica certificado recusado (validade ou domínio/IP no SAN); a ferramenta
+mantém o rollback e não ignora o certificado. `HTTP=200` interrompe a atualização
+porque o endpoint privado deveria retornar 401 sem sessão.
 Backup: edge.yaml, nginx.conf e release (caminho anterior do symlink).
 Rollback manual: pare somente os dois serviços Kore Edge, restaure os dois arquivos
 nos destinos originais e aponte /opt/kore-edge/current ao caminho registrado em

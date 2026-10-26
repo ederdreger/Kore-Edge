@@ -190,6 +190,16 @@ func testHTTPSGateway(t *testing.T, panel bool) {
 			<-done
 		}
 	}()
+	if panel {
+		probe := exec.Command(bash(t), "-c", `source ../../scripts/gateway-lib.sh; check_panel_https 127.0.0.1 "$1" "$2" || { printf '%s\n' "$GATEWAY_CHECK_ERROR"; exit 1; }`, "probe", port, filepath.Join(dir, "server.crt"))
+		if output, e := probe.CombinedOutput(); e != nil {
+			t.Fatal("updater HTTPS probe failed", string(output))
+		}
+		wrongHost := exec.Command(bash(t), "-c", `source ../../scripts/gateway-lib.sh; check_panel_https wrong.example "$1" "$2" 1 0; result=$?; printf '%s\n' "$GATEWAY_CHECK_ERROR"; exit "$result"`, "probe", port, filepath.Join(dir, "server.crt"))
+		if output, e := wrongHost.CombinedOutput(); e == nil || !strings.Contains(string(output), "curl=60") {
+			t.Fatal("updater accepted wrong TLS identity", string(output))
+		}
+	}
 	roots := x509.NewCertPool()
 	if !roots.AppendCertsFromPEM(certPEM) {
 		t.Fatal("root fixture")

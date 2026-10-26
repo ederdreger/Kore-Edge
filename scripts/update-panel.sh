@@ -111,9 +111,10 @@ for attempt in {1..30}; do if curl --noproxy '*' --globoff --silent --fail --max
 [[ $(curl --noproxy '*' --globoff -s -o /dev/null -w '%{http_code}' --max-time 3 "http://$backend/api/v1/auth/me") == 401 ]] || die 'API nao bloqueia acesso anonimo.'
 systemctl start kore-edge-gateway.service
 systemctl is-active --quiet kore-edge-gateway.service || die 'Gateway nao iniciou.'
-# Pin the existing certificate, without trusting arbitrary network certificates.
-address="127.0.0.1:$port"; tls_host=$host; if [[ $host == *:* ]]; then tls_host="[$host]"; fi
-[[ $(curl --noproxy '*' --globoff --silent --cacert /etc/kore-edge/gateway/server.crt --connect-to "$tls_host:$port:$address" --max-time 5 -o /dev/null -w '%{http_code}' "$origin/api/v1/auth/me") == 401 ]] || die 'HTTPS nao bloqueia acesso anonimo.'
+# Active systemd state does not mean Nginx has finished opening its TLS listener.
+if ! check_panel_https "$host" "$port" /etc/kore-edge/gateway/server.crt; then
+ die "Validacao HTTPS falhou: $GATEWAY_CHECK_ERROR. Rollback sera executado."
+fi
 changed=0
 printf 'Atualizacao concluida: %s\nUse o mesmo usuario e senha anteriores. Abra uma janela privativa.\n' "$origin"
 printf 'Rollback manual (com servicos parados): restaurar arquivos de %s e o symlink indicado em release.\n' "$backup"

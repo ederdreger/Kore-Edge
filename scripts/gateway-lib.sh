@@ -153,3 +153,37 @@ render_panel_gateway() {
     -e '/proxy_set_header Origin /d' \
     -e 's/client_max_body_size 1k;/client_max_body_size 16k;/'
 }
+
+# Probe the reviewed public TLS identity through loopback, without browser state,
+# proxy environment or ~/.curlrc. Never weaken certificate verification.
+# Caller may print this bounded diagnostic; no response body or raw curl error.
+check_panel_https() {
+  local host=$1 port=$2 certificate=$3 attempts=${4:-20} delay=${5:-1}
+  local origin tls_host=$host status code attempt
+  GATEWAY_CHECK_ERROR='parametros de verificacao invalidos'
+  valid_gateway_port "$port" && [[ $attempts =~ ^[1-9][0-9]?$ ]] && ((attempts <= 30)) || return 1
+  [[ $delay == 0 || $delay == 1 ]] || return 1
+  origin=$(gateway_url "$host" "$port"); origin=${origin%/}
+  if [[ $host == *:* ]]; then tls_host="[$host]"; fi
+  for ((attempt=1; attempt<=attempts; attempt++)); do
+    code=0
+    status=$(curl -q --noproxy '*' --globoff --silent \
+      --cacert "$certificate" --connect-to "$tls_host:$port:127.0.0.1:$port" \
+      --connect-timeout 2 --max-time 3 --header 'Authorization:' --header 'Cookie:' \
+      -o /dev/null -w '%{http_code}' "$origin/api/v1/auth/me" 2>/dev/null) || code=$?
+    if [[ $code == 0 && $status == 401 ]]; then GATEWAY_CHECK_ERROR=''; return 0; fi
+    case "$code:$status" in
+      0:502|0:503|7:*|28:*|52:*|56:*)
+        GATEWAY_CHECK_ERROR="gateway ainda indisponivel (curl=$code, HTTP=${status:-000}, tentativa=$attempt/$attempts)" ;;
+      60:*) GATEWAY_CHECK_ERROR='certificado TLS recusado: confira validade e SAN para o dominio/IP confirmado (curl=60)'; return 1 ;;
+      77:*) GATEWAY_CHECK_ERROR='nao foi possivel ler o certificado local confiavel (curl=77)'; return 1 ;;
+      0:*)
+        if [[ $status =~ ^[0-9]{3}$ ]]; then GATEWAY_CHECK_ERROR="resposta HTTPS inesperada: HTTP=$status; esperado 401 sem sessao"
+        else GATEWAY_CHECK_ERROR='resposta HTTPS invalida'; fi
+        return 1 ;;
+      *) GATEWAY_CHECK_ERROR="falha de transporte HTTPS (curl=$code)"; return 1 ;;
+    esac
+    if ((attempt < attempts)); then sleep "$delay"; fi
+  done
+  return 1
+}
