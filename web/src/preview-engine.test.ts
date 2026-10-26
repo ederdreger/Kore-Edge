@@ -31,6 +31,8 @@ it('builds only fixed local authorized media paths',()=>{
  expect(previewPath(source)).toBe('/api/v1/kore-play/media/synthetic-one/hls/index.m3u8');
  expect(()=>previewPath({...source,id:'../private'})).toThrow();
  expect(previewPath({...source,protocol:'http_ts'})).toContain('/http_ts/stream.ts');
+ expect(previewPath({...source,protocol:'http_ts',scope:'live'})).toBe('/api/v1/live/media/synthetic-one/stream.ts');
+ expect(previewPath({...source,scope:'output'})).toBe('/api/v1/live/hls/synthetic-one/index.m3u8');
 });
 it('loads HLS lazily, restricts nested requests and releases the stream on pause',async()=>{
  const statuses:PreviewStatus[]=[];stop=startPreview(video,source,s=>statuses.push(s));

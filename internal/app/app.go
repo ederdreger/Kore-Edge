@@ -20,6 +20,7 @@ import (
 	"kore-edge/internal/edgecatalog"
 	"kore-edge/internal/hls"
 	"kore-edge/internal/integration"
+	"kore-edge/internal/live"
 	"kore-edge/internal/monitoring"
 	"kore-edge/internal/provision"
 	"kore-edge/internal/security"
@@ -182,7 +183,15 @@ func servePanel(ctx context.Context, ln net.Listener, store *catalog.Store, engi
 			defer func() { stop(); <-done }()
 		}
 	}
-	a := &api.API{PartnerCatalog: partnerCatalog, WireGuardCredentials: wgCredentials, Mode: mode, Accounts: users, PublicOrigin: origin, Integration: synchronizer, Security: guard, Catalog: store, Streams: engine, HLS: manager, Monitoring: observer, Provision: registry, ProvisionEdgeID: edgeID}
+	var distribution *live.Manager
+	if partnerCatalog != nil {
+		distribution, _ = live.New(ctx, filepath.Join(users.Directory(), "live"), partnerCatalog)
+		if distribution != nil {
+			defer distribution.Close()
+			distribution.Resume()
+		}
+	}
+	a := &api.API{Live: distribution, PartnerCatalog: partnerCatalog, WireGuardCredentials: wgCredentials, Mode: mode, Accounts: users, PublicOrigin: origin, Integration: synchronizer, Security: guard, Catalog: store, Streams: engine, HLS: manager, Monitoring: observer, Provision: registry, ProvisionEdgeID: edgeID}
 	server := a.Server()
 	server.TLSConfig = guard.TLSConfig()
 	server.ErrorLog = log.New(io.Discard, "", 0)

@@ -44,19 +44,21 @@ type Protocol struct {
 	Verification string `json:"verification"`
 }
 type Channel struct {
+	Outputs   []string   `json:"outputs,omitempty"`
 	ID        string     `json:"id"`
 	Name      string     `json:"name"`
 	Category  string     `json:"category"`
 	Protocols []Protocol `json:"protocols"`
 }
 type Manifest struct {
-	Version     int       `json:"version"`
-	Revision    uint64    `json:"grant_revision"`
-	PartnerID   string    `json:"partner_id"`
-	PartnerName string    `json:"partner_name"`
-	IssuedAt    time.Time `json:"issued_at"`
-	ExpiresAt   time.Time `json:"expires_at"`
-	Channels    []Channel `json:"channels"`
+	SRT         *SRTTransport `json:"srt,omitempty"`
+	Version     int           `json:"version"`
+	Revision    uint64        `json:"grant_revision"`
+	PartnerID   string        `json:"partner_id"`
+	PartnerName string        `json:"partner_name"`
+	IssuedAt    time.Time     `json:"issued_at"`
+	ExpiresAt   time.Time     `json:"expires_at"`
+	Channels    []Channel     `json:"channels"`
 }
 type state struct {
 	Version    int       `json:"version"`
@@ -287,11 +289,24 @@ func (s *Service) signed(ctx context.Context, path string, target any) error {
 	return nil
 }
 func (m Manifest) validate(now time.Time) error {
+	if m.SRT != nil && (m.SRT.Port < 1024 || m.SRT.Port > 65535 || m.SRT.LatencyMS < 20 || m.SRT.LatencyMS > 5000) {
+		return ErrIntegrity
+	}
 	if m.Version != 1 || m.Revision < 1 || !regexp.MustCompile(`^[a-f0-9]{32}$`).MatchString(m.PartnerID) || len(m.PartnerName) < 1 || len(m.PartnerName) > 512 || m.IssuedAt.After(now.Add(30*time.Second)) || !m.ExpiresAt.After(now) || m.ExpiresAt.Sub(m.IssuedAt) > 5*time.Minute || !m.ExpiresAt.After(m.IssuedAt) || len(m.Channels) > 512 {
 		return ErrIntegrity
 	}
 	seen := map[string]bool{}
 	for _, c := range m.Channels {
+		if len(c.Outputs) > 2 {
+			return ErrIntegrity
+		}
+		seenOutputs := map[string]bool{}
+		for _, output := range c.Outputs {
+			if (output != "udp" && output != "hls") || seenOutputs[output] {
+				return ErrIntegrity
+			}
+			seenOutputs[output] = true
+		}
 		if !safeID.MatchString(c.ID) || seen[c.ID] || len(c.Name) < 1 || len(c.Name) > 512 || len(c.Category) > 512 || len(c.Protocols) > 2 {
 			return ErrIntegrity
 		}
@@ -301,7 +316,10 @@ func (m Manifest) validate(now time.Time) error {
 			suffix := "/stream.ts"
 			if p.ID == "hls" {
 				suffix = "/index.m3u8"
-			} else if p.ID != "http_ts" {
+			} else if p.ID != "http_ts" && p.ID != "srt" {
+				return ErrIntegrity
+			}
+			if p.ID == "srt" && m.SRT == nil {
 				return ErrIntegrity
 			}
 			if protocols[p.ID] || p.Path != "/api/kore-edge/media/"+c.ID+"/"+p.ID+suffix || p.Verification != "not_tested" {
@@ -363,14 +381,10 @@ func (s *Service) Run(ctx context.Context) {
 	}
 }
 func (s *Service) allowed(id, protocol string) bool {
-	identity, e := s.credentials.Snapshot()
-	if e != nil || identity.Settings == nil {
-		return false
-	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	data := s.data
-	if data.Catalog == nil || !time.Now().Before(data.Catalog.ExpiresAt) || identity.PublicKey != data.EdgeKey || identity.Settings.KorePlayPublicKey != data.MatrixKey {
+	if data.Catalog == nil || !time.Now().Before(data.Catalog.ExpiresAt) || !s.credentials.MatchesDistribution(data.EdgeKey, data.MatrixKey) {
 		return false
 	}
 	for _, channel := range data.Catalog.Channels {

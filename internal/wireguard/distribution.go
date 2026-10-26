@@ -40,6 +40,22 @@ func (s *CredentialStore) distributionSecret() ([]byte, string, error) {
 	return shared, s.publicKey(), nil
 }
 
+// MatchesDistribution checks the pinned identity without constructing a panel
+// DTO or repeating X25519 on every transport packet. Revision changes invalidate
+// the public-key cache; no private material is cached or returned here.
+func (s *CredentialStore) MatchesDistribution(edge, matrix string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || s.data.Settings == nil {
+		return false
+	}
+	if s.distributionRevision != s.data.Revision || s.distributionPublic == "" {
+		s.distributionPublic = s.publicKey()
+		s.distributionRevision = s.data.Revision
+	}
+	return s.distributionPublic != "" && edge == s.distributionPublic && matrix == s.data.Settings.KorePlayPublicKey
+}
+
 // DistributionHeaders proves possession of the existing Edge identity. Neither
 // private key nor shared secret is exported in an HTTP request or browser DTO.
 func (s *CredentialStore) DistributionHeaders(path string) (http.Header, error) {
@@ -54,6 +70,7 @@ func (s *CredentialStore) DistributionHeaders(path string) (http.Header, error) 
 	stamp := strconv.FormatInt(time.Now().Unix(), 10)
 	n := hex.EncodeToString(nonce)
 	headers := http.Header{}
+	headers.Set("X-Kore-Edge-Features", "live-v1,srt-v1")
 	headers.Set("X-Kore-Edge-Key", public)
 	headers.Set("X-Kore-Edge-Time", stamp)
 	headers.Set("X-Kore-Edge-Nonce", n)
@@ -68,4 +85,20 @@ func (s *CredentialStore) VerifyDistribution(nonce, payload, proof string) bool 
 	want, _ := hex.DecodeString(sign(key, "kore-edge/distribution/reply/v1\n"+nonce+"\n"+payload))
 	got, e := hex.DecodeString(proof)
 	return e == nil && hmac.Equal(want, got)
+}
+
+// SRTSecret stays inside server-side transport code, never in API responses,
+// process arguments, versioned files or logs.
+func (s *CredentialStore) SRTSecret(partnerID string) (string, error) {
+	key, _, e := s.distributionSecret()
+	if e != nil {
+		return "", e
+	}
+	if len(partnerID) != 32 {
+		return "", ErrCredentials
+	}
+	if _, e = hex.DecodeString(partnerID); e != nil {
+		return "", ErrCredentials
+	}
+	return sign(key, "kore-edge/srt/encryption/v1\n"+partnerID)[:32], nil
 }

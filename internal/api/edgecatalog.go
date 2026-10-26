@@ -26,6 +26,9 @@ func (a *API) partnerCatalog(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(400)
 			return
 		}
+		if a.Live != nil && parts[1] == "http_ts" && parts[2] == "stream.ts" && a.Live.MediaIfActive(w, r, parts[0], parts[1]) {
+			return
+		}
 		a.PartnerCatalog.Media(w, r, parts[0], parts[1], parts[2])
 		return
 	}

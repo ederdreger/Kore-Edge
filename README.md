@@ -1,5 +1,21 @@
 # Kore Edge — Plano mestre de desenvolvimento
 
+## Recepção contínua, SRT e saídas reais
+
+**Canais**, **Multicast UDP** e **HTTP / HLS** agora consultam o mesmo catálogo do
+parceiro. Configure um canal, salve a preparação e só então confirme **Iniciar
+recepção**. O fluxo permanece aberto com o player fechado e é compartilhado com
+as saídas autorizadas. O painel informa tempo até o primeiro sinal, bitrate
+medido, continuidade TS, falhas e permissões; métricas ausentes não são simuladas.
+
+SRT recebe da matriz pelo WireGuard, com criptografia e autorização por parceiro.
+**20000/UDP é apenas proposta para revisão no Kore Play**. Salvar não inicia o
+listener. Multicast não escolhe interface, IP, grupo ou porta automaticamente.
+HLS local exige liberação na central e H.264/AAC verificados, sem transcodificar.
+As novas telas mantêm a organização visual das referências e se adaptam à largura
+da tela. Veja o [passo a passo de operação](docs/DISTRIBUICAO-AO-VIVO.md) e o
+[contrato técnico](docs/modules/19-live-distribution.md).
+
 ## Canais autorizados do Kore Play
 
 No Kore Play, **Canais → Parceiros Kore Edge** permite escolher o parceiro e
