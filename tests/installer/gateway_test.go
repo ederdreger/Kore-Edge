@@ -8,6 +8,7 @@ import (
 	"crypto/sha1" // Nginx SHA fixture only; installer uses bcrypt, never this format.
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
@@ -80,7 +81,7 @@ func testHTTPSGateway(t *testing.T, panel bool) {
 		t.Fatal(e)
 	}
 	now := time.Now()
-	template := &x509.Certificate{SerialNumber: big.NewInt(1), NotBefore: now.Add(-time.Minute), NotAfter: now.Add(time.Hour), IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}, KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
+	template := &x509.Certificate{Subject: pkix.Name{CommonName: "Kore Edge synthetic TLS"}, BasicConstraintsValid: true, IsCA: true, SerialNumber: big.NewInt(1), NotBefore: now.Add(-time.Minute), NotAfter: now.Add(time.Hour), IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}, KeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
 	der, e := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
 	if e != nil {
 		t.Fatal(e)
