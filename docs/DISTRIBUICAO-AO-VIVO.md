@@ -26,6 +26,8 @@ até nova confirmação no painel.
 ## 2. Receber no Edge
 
 1. Abra **Canais → Sincronizar com matriz** e use **Buscar canais**.
+   Confira a opção **Atualizar automaticamente a cada minuto** para operação
+   contínua: o catálogo assinado expira em cinco minutos sem renovação.
 2. Selecione um canal da lista e clique em **Editar canal**.
 3. Confira protocolo e ferramentas detectadas. Salve a preparação.
 4. Clique em **Iniciar recepção**, confira o resumo e confirme com a senha do Edge.
