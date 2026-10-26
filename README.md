@@ -23,6 +23,8 @@ e faz rollback se a validação falhar. Dados anteriores são preservados; a nov
 configuração de painel desabilita catálogo, streams e integrações de teste.
 O teste HTTPS aguarda o listener iniciar e distingue indisponibilidade, erro TLS
 e resposta HTTP inesperada, mantendo a verificação do certificado.
+Também valida HTML e JavaScript do login sem sessão, enviando o Origin público
+como o navegador. A origem é conferida antes da normalização para o guard local.
 Não execute o instalador novo sobre a instalação existente.
 Veja [passo a passo](docs/INSTALACAO-SIMPLES.md) e [contrato de contas](docs/modules/15-accounts.md).
 

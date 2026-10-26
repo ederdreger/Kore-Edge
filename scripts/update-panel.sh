@@ -115,6 +115,9 @@ systemctl is-active --quiet kore-edge-gateway.service || die 'Gateway nao inicio
 if ! check_panel_https "$host" "$port" /etc/kore-edge/gateway/server.crt; then
  die "Validacao HTTPS falhou: $GATEWAY_CHECK_ERROR. Rollback sera executado."
 fi
+if ! check_panel_assets "$host" "$port" /etc/kore-edge/gateway/server.crt; then
+ die "Validacao da interface falhou: $GATEWAY_CHECK_ERROR. Rollback sera executado."
+fi
 changed=0
 printf 'Atualizacao concluida: %s\nUse o mesmo usuario e senha anteriores. Abra uma janela privativa.\n' "$origin"
 printf 'Rollback manual (com servicos parados): restaurar arquivos de %s e o symlink indicado em release.\n' "$backup"

@@ -187,3 +187,25 @@ check_panel_https() {
   done
   return 1
 }
+
+# Test the public bootstrap as a browser does, including Origin on module scripts.
+check_panel_assets() {
+  local host=$1 port=$2 certificate=$3 origin tls_host=$1 html module status
+  GATEWAY_CHECK_ERROR='HTML ou arquivos do login indisponiveis'
+  origin=$(gateway_url "$host" "$port"); origin=${origin%/}
+  if [[ $host == *:* ]]; then tls_host="[$host]"; fi
+  local -a options=(-q --noproxy '*' --globoff --silent --fail --cacert "$certificate"
+    --connect-to "$tls_host:$port:127.0.0.1:$port" --connect-timeout 2 --max-time 5
+    --header 'Authorization:' --header 'Cookie:')
+  html=$(curl "${options[@]}" --max-filesize 65536 "$origin/" 2>/dev/null) || return 1
+  if [[ $html =~ src=\"(/ui/assets/[a-zA-Z0-9_-]+\.js)\" ]]; then module=${BASH_REMATCH[1]}
+  else GATEWAY_CHECK_ERROR='HTML do login sem modulo JavaScript reconhecido'; return 1; fi
+  status=$(curl "${options[@]}" --header "Origin: $origin" --header 'Sec-Fetch-Site: same-origin' \
+    --header 'Sec-Fetch-Mode: cors' --header 'Sec-Fetch-Dest: script' --max-filesize 2097152 \
+    -o /dev/null -w '%{http_code}:%{content_type}' "$origin$module" 2>/dev/null) || return 1
+  if [[ $status =~ ^200:(text|application)/(javascript|ecmascript)(\;.*)?$ ]]; then
+    GATEWAY_CHECK_ERROR=''; return 0
+  fi
+  GATEWAY_CHECK_ERROR='JavaScript do login recusado ou com tipo MIME incorreto'
+  return 1
+}

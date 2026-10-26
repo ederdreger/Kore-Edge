@@ -104,7 +104,17 @@ func (s *Store) Wrap(origin string, next http.Handler) http.Handler {
 		publicAsset := path == "/healthz" || path == "/readyz" || path == "/" || path == "/ui/" || strings.HasPrefix(path, "/ui/assets/") || strings.HasPrefix(path, "/ui/licenses/")
 		if !ok {
 			if publicAsset && !mutating {
-				next.ServeHTTP(w, r)
+				// Module scripts loaded with crossorigin carry the public HTTPS
+				// Origin even before login. Validate it here, then normalize it for
+				// the downstream loopback guard, which sees the private HTTP host.
+				if supplied := r.Header.Get("Origin"); supplied != "" && canonicalOrigin(supplied) != origin {
+					reply(w, 403, nil)
+					return
+				}
+				clone := r.Clone(r.Context())
+				clone.Header = r.Header.Clone()
+				clone.Header.Del("Origin")
+				next.ServeHTTP(w, clone)
 				return
 			}
 			reply(w, 401, nil)

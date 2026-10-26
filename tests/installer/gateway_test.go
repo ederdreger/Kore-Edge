@@ -14,6 +14,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"golang.org/x/crypto/bcrypt"
+	"io"
 	"kore-edge/internal/accounts"
 	"kore-edge/internal/api"
 	"math/big"
@@ -23,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -192,7 +194,7 @@ func testHTTPSGateway(t *testing.T, panel bool) {
 		}
 	}()
 	if panel {
-		probe := exec.Command(bash(t), "-c", `source ../../scripts/gateway-lib.sh; check_panel_https 127.0.0.1 "$1" "$2" || { printf '%s\n' "$GATEWAY_CHECK_ERROR"; exit 1; }`, "probe", port, filepath.Join(dir, "server.crt"))
+		probe := exec.Command(bash(t), "-c", `source ../../scripts/gateway-lib.sh; check_panel_https 127.0.0.1 "$1" "$2" && check_panel_assets 127.0.0.1 "$1" "$2" || { printf '%s\n' "$GATEWAY_CHECK_ERROR"; exit 1; }`, "probe", port, filepath.Join(dir, "server.crt"))
 		if output, e := probe.CombinedOutput(); e != nil {
 			t.Fatal("updater HTTPS probe failed", string(output))
 		}
@@ -230,6 +232,41 @@ func testHTTPSGateway(t *testing.T, panel bool) {
 	}
 
 	if panel {
+		// Browser module requests send the public Origin before any login cookie.
+		html, e := client.Get(base + "/")
+		if e != nil {
+			t.Fatal(e)
+		}
+		page, e := io.ReadAll(io.LimitReader(html.Body, 64*1024))
+		html.Body.Close()
+		if e != nil || html.StatusCode != 200 {
+			t.Fatal("login HTML unavailable")
+		}
+		asset := regexp.MustCompile(`src="(/ui/assets/[a-zA-Z0-9_-]+\.js)"`).FindSubmatch(page)
+		if len(asset) != 2 {
+			t.Fatal("module script absent from login HTML")
+		}
+		for _, test := range []struct {
+			origin string
+			status int
+		}{{base, 200}, {"https://evil.example", 403}} {
+			module, _ := http.NewRequest("GET", base+string(asset[1]), nil)
+			module.Header.Set("Origin", test.origin)
+			module.Header.Set("Sec-Fetch-Site", "same-origin")
+			module.Header.Set("Sec-Fetch-Mode", "cors")
+			module.Header.Set("Sec-Fetch-Dest", "script")
+			response, e := client.Do(module)
+			if e != nil {
+				t.Fatal(e)
+			}
+			response.Body.Close()
+			if response.StatusCode != test.status {
+				t.Fatal("anonymous module status", response.StatusCode, "expected", test.status)
+			}
+			if test.status == 200 && !strings.Contains(response.Header.Get("Content-Type"), "javascript") {
+				t.Fatal("module has invalid MIME type")
+			}
+		}
 		client.Jar, _ = cookiejar.New(nil)
 		response, e := client.Get(base + "/api/v1/edge")
 		if e != nil {

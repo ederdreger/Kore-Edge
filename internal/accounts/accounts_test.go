@@ -3,6 +3,7 @@ package accounts
 import (
 	"encoding/json"
 	"golang.org/x/crypto/bcrypt"
+	"kore-edge/internal/security"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,6 +12,43 @@ import (
 	"testing"
 	"time"
 )
+
+func TestAnonymousModuleOriginBehindGateway(t *testing.T) {
+	s := fixture(t)
+	h := s.Wrap("https://edge.example", security.Local().Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Origin") != "" {
+			t.Error("public origin forwarded to private guard")
+		}
+		w.WriteHeader(204)
+	})))
+	for _, tc := range []struct {
+		name, path, origin, site, host string
+		status                         int
+	}{
+		{"module script", "/ui/assets/app.js", "https://edge.example", "same-origin", "127.0.0.1:18080", 204},
+		{"stylesheet", "/ui/assets/app.css", "", "same-origin", "127.0.0.1:18080", 204},
+		{"hostile origin", "/ui/assets/app.js", "https://evil.example", "same-origin", "127.0.0.1:18080", 403},
+		{"cross site", "/ui/assets/app.js", "https://edge.example", "cross-site", "127.0.0.1:18080", 403},
+		{"private API", "/api/v1/edge", "https://edge.example", "same-origin", "127.0.0.1:18080", 401},
+		{"untrusted host", "/ui/assets/app.js", "https://edge.example", "same-origin", "evil.example", 403},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := httptest.NewRequest("GET", tc.path, nil)
+			r.RemoteAddr = "127.0.0.1:1234"
+			r.Host = tc.host
+			r.Header.Set("Origin", tc.origin)
+			r.Header.Set("Sec-Fetch-Site", tc.site)
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			if w.Code != tc.status {
+				t.Fatalf("status=%d want=%d", w.Code, tc.status)
+			}
+			if r.Header.Get("Origin") != tc.origin {
+				t.Fatal("original request mutated")
+			}
+		})
+	}
+}
 
 const testPassword = "synthetic-password-42"
 

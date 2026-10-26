@@ -26,6 +26,11 @@ de laboratório na configuração; arquivos anteriores são preservados. A base 
 usuários nunca é sobrescrita. Gateway personalizado é recusado para revisão manual.
 Não execute o instalador novo sobre uma instalação existente.
 
+Se a versão anterior abriu uma tela branca antes do login, atualize pelo mesmo
+procedimento acima. A correção permite baixar o módulo JavaScript com o Origin
+público validado, antes da sessão. O atualizador agora verifica também HTML e
+JavaScript. Depois use Ctrl+F5 ou uma janela privativa; contas e senhas permanecem.
+
 Se a validação falhar, o script restaura configuração e release anteriores.
 Se uma versão anterior mostrou apenas `HTTPS nao bloqueia acesso anonimo`, essa
 mensagem não distingue falha de conexão de falha TLS ou HTTP. Atualize o checkout

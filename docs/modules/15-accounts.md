@@ -57,6 +57,10 @@ CSRF após login e corpo até 8192 bytes. Quatro mutações concorrentes, 256 se
 30 tentativas/minuto por instância e 5 falhas/nome normalizado. Erros genéricos.
 
 Somente HTML, assets, healthz e readyz são públicos. Backend apenas em loopback.
+Requisições públicas de módulos JavaScript podem enviar Origin antes do login:
+Accounts confere a origem HTTPS configurada e remove esse cabeçalho apenas na
+cópia encaminhada ao guard local. Origens externas e Sec-Fetch-Site cross-site
+continuam recusados. Não há liberação de APIs privadas ou mutações.
 Nginx preserva Origin e remove Authorization/cabeçalhos de identidade encaminhada.
 Sessão não autoriza escritas nas APIs operacionais: o guard original permanece.
 Accounts exige local_readonly atrás do gateway, não se mistura com listener mTLS.
