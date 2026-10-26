@@ -279,6 +279,10 @@ func testHTTPSGateway(t *testing.T, panel bool) {
 		login, _ := http.NewRequest("POST", base+"/api/v1/auth/login", strings.NewReader(`{"username":"viewer","password":"synthetic-password"}`))
 		login.Header.Set("Origin", base)
 		login.Header.Set("Content-Type", "application/json")
+		// The short readiness budget above must not also limit bcrypt under
+		// -race while the package suite competes for the runner's CPUs. Keep
+		// the authentication request bounded; Nginx retains its own timeout.
+		client.Timeout = 15 * time.Second
 		response, e = client.Do(login)
 		if e != nil {
 			t.Fatal(e)
