@@ -15,7 +15,7 @@ import (
 )
 
 func TestOfflineIssuerNeverPrintsToken(t *testing.T) {
-	dir := t.TempDir()
+	dir := filepath.Join(t.TempDir(), "registry")
 	pub, _, e := ed25519.GenerateKey(rand.Reader)
 	if e != nil {
 		t.Fatal(e)

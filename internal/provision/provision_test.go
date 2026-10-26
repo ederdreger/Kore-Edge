@@ -54,7 +54,7 @@ func proof(t *testing.T, edge string) Request {
 }
 func setup(t *testing.T) (*Registry, Assignment, time.Time) {
 	t.Helper()
-	r, e := Open(t.TempDir())
+	r, e := Open(filepath.Join(t.TempDir(), "registry"))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -273,7 +273,7 @@ func TestConfigurationAndRuntimePaths(t *testing.T) {
 		t.Fatal("relative path")
 	}
 	_, a, now := setup(t)
-	r, e := Open(t.TempDir())
+	r, e := Open(filepath.Join(t.TempDir(), "registry"))
 	if e != nil {
 		t.Fatal(e)
 	}

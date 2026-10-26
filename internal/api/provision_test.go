@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -20,7 +21,7 @@ import (
 )
 
 func TestProvisioningHTTP(t *testing.T) {
-	registry, e := provision.Open(t.TempDir())
+	registry, e := provision.Open(filepath.Join(t.TempDir(), "registry"))
 	if e != nil {
 		t.Fatal(e)
 	}
