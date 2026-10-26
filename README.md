@@ -1,5 +1,8 @@
 # Kore Edge — Plano mestre de desenvolvimento
 
+Integração guiada: comece em **Edge → WireGuard**, copie a identificação e siga
+as etapas nos dois painéis. Consulte o [passo a passo simples](docs/INTEGRACAO-SIMPLES.md).
+
 Repositório público: [ederdreger/Kore-Edge](https://github.com/ederdreger/Kore-Edge).
 
 ## Credenciais WireGuard para Kore Play
