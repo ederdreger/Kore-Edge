@@ -1,5 +1,13 @@
 # Conectar Edge e Kore Play, passo a passo
 
+Ao abrir **WireGuard**, a tela principal mostra o estado atual. **Online** exige
+resposta recente real; **Sem resposta** significa que a configuração foi aplicada
+mas não houve resposta recente; **Indisponível** significa falha de consulta e não
+mantém uma confirmação antiga como atual. A consulta continua a cada cinco segundos,
+inclusive depois de conectar. Use **Ver detalhes da conexão** para acompanhar sem
+reconfigurar e **Voltar à tela principal do WireGuard** para sair do assistente.
+Quando a configuração já está aplicada, não é necessário repetir os botões.
+
 Abra os dois painéis em abas diferentes. Use uma conta de administrador em cada um.
 Cada tela indica de qual painel você precisa da senha. Não envie senhas pelo chat.
 

@@ -1,5 +1,21 @@
 # Conexão WireGuard entre Kore Play e Edge
 
+Estado observado: o auxiliar retorna `checked_at`, `observation_available` e
+`peers[]` com chave pública, `last_handshake` Unix e `online`. Cada peer exige sua
+própria resposta com idade inferior a 180 segundos; peers sem resposta, ausentes ou
+dados inválidos não são contados como online. Falha de leitura é indisponibilidade.
+A UI continua consultando após sucesso e descarta confirmação antiga em falha.
+Isso confirma a comunicação WireGuard, não a entrega de canais.
+
+Atualização do auxiliar já instalado: conferir unidade ativa, ausência de job em
+andamento e de recuperação pendente; registrar interfaces e rotas atuais; verificar
+SHA-256 do novo binário Linux. Guardar cópia root privada do executável anterior.
+Parar somente `kore-wg-bridge-ROLE.service`, trocar o executável de forma atômica e
+iniciar a mesma unidade. Não modificar identidade, diário, interface ou peers.
+Validar socket, `checked_at`, observações dos peers e mesmas interfaces/rotas.
+Em falha, parar apenas o auxiliar, restaurar executável anterior e iniciar a unidade.
+Parar o auxiliar não derruba o túnel; comandos reais exigem aprovação operacional.
+
 O botão de copiar confirma sucesso junto ao texto. Se a permissão do navegador
 for negada, mantém a seleção e orienta Ctrl+C. Copiar não aplica rede.
 

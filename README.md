@@ -1,5 +1,9 @@
 # Kore Edge — Plano mestre de desenvolvimento
 
+**WireGuard** abre na tela principal com estado online/offline/indisponível,
+horário da última resposta e consulta automática a cada cinco segundos. Operações
+já aplicadas ficam bloqueadas; detalhes têm retorno explícito à tela principal.
+
 Integração guiada: comece em **Edge → WireGuard**, copie a identificação e siga
 as etapas nos dois painéis. Consulte o [passo a passo simples](docs/INTEGRACAO-SIMPLES.md).
 
