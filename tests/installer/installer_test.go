@@ -108,11 +108,21 @@ func run(t *testing.T, args ...string) (string, error) {
 func TestInstallerSyntax(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	for _, script := range []string{"install.sh", "setup.sh", "gateway-lib.sh"} {
+	for _, script := range []string{"install.sh", "setup.sh", "gateway-lib.sh", "repair-gateway.sh"} {
 		command := exec.CommandContext(ctx, bash(t), "-n", "../../scripts/"+script)
 		if output, e := command.CombinedOutput(); e != nil {
 			t.Fatal("invalid Bash syntax", string(output))
 		}
+	}
+}
+
+func TestGatewayRepairDefaultsToPlan(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, bash(t), "../../scripts/repair-gateway.sh")
+	out, e := command.CombinedOutput()
+	if e != nil || !strings.Contains(string(out), "SIMULACAO") || !strings.Contains(string(out), "Senha, certificado") {
+		t.Fatal("repair plan failed", string(out), e)
 	}
 }
 func TestPlanIncludesPackagesAndNeverApplies(t *testing.T) {

@@ -52,6 +52,9 @@ http {
   server_tokens off;
   client_body_temp_path /var/cache/kore-edge/gateway/client;
   proxy_temp_path /var/cache/kore-edge/gateway/proxy;
+  fastcgi_temp_path /var/cache/kore-edge/gateway/fastcgi;
+  uwsgi_temp_path /var/cache/kore-edge/gateway/uwsgi;
+  scgi_temp_path /var/cache/kore-edge/gateway/scgi;
   limit_req_zone \$binary_remote_addr zone=login:1m rate=10r/s;
   server {
     listen 0.0.0.0:$port ssl;
@@ -85,5 +88,20 @@ EOF
     }
   }
 }
+
 EOF
+}
+
+
+# Patch only the three omitted directives, retaining certificates, auth and ports.
+repair_gateway_temp_paths() {
+  awk '
+    /^[[:space:]]*(fastcgi|uwsgi|scgi)_temp_path[[:space:]]/ { next }
+    { print }
+    /^[[:space:]]*proxy_temp_path \/var\/cache\/kore-edge\/gateway\/proxy;$/ {
+      print "  fastcgi_temp_path /var/cache/kore-edge/gateway/fastcgi;"
+      print "  uwsgi_temp_path /var/cache/kore-edge/gateway/uwsgi;"
+      print "  scgi_temp_path /var/cache/kore-edge/gateway/scgi;"
+    }
+  ' "$1"
 }

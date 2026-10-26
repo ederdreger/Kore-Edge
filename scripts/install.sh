@@ -225,6 +225,9 @@ git -c safe.directory="$source_dir" -C "$source_dir" show "$revision:deploy/syst
 install -o root -g root -m 0644 "$release/kore-edge.service" /etc/systemd/system/kore-edge.service
 if [[ -n $public_host ]]; then
   install -d -o kore-edge -g kore-edge -m 0700 /etc/kore-edge/gateway /var/cache/kore-edge/gateway
+  for temp in client proxy fastcgi uwsgi scgi; do
+    install -d -o kore-edge -g kore-edge -m 0700 "/var/cache/kore-edge/gateway/$temp"
+  done
   san="DNS:$public_host"
   if [[ $public_host == *:* || $public_host =~ ^[0-9.]+$ ]]; then san="IP:$public_host"; fi
   openssl req -x509 -newkey rsa:3072 -nodes -sha256 -days 365 -subj '/CN=Kore Edge laboratory' \

@@ -24,6 +24,9 @@ Já baixou o projeto? Dentro da pasta, execute `git pull --ff-only` e depois
 
 Se uma tentativa falhou nos testes após instalar pacotes, consulte a
 [retomada da instalação](docs/INSTALACAO-SIMPLES.md) antes de remover arquivos.
+Para erro Nginx `mkdir() /var/lib/nginx/fastcgi ... Permission denied` após os
+testes, existe um [reparo específico do gateway](docs/INSTALACAO-SIMPLES.md),
+preservando senha, certificado e configuração já instalados.
 
 Veja o [passo a passo simples](docs/INSTALACAO-SIMPLES.md).
 [Documentação técnica e rollback](docs/INSTALL.md) para operadores avançados.

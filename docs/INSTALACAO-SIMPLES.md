@@ -82,7 +82,38 @@ configuração ou dados existentes. Se houver Nginx em execução, máscara dife
 ou uma instalação do Kore Edge já publicada, ele recusa a retomada para inspeção.
 Os avisos do Ubuntu sobre reinícios adiados não são esse erro de teste.
 
-### Acesso depois da instalação
+### Se o Nginx falhou com `/var/lib/nginx/fastcgi ... Permission denied`
+
+Os testes passaram, mas o Nginx tentou usar seu cache padrão sem permissão.
+A correção configura todos os temporários no cache privado do Kore Edge.
+Não apague arquivos e não aumente permissões de `/var/lib/nginx`.
+
+Dentro da pasta Kore-Edge, atualize e confira o plano:
+
+```sh
+git pull --ff-only
+bash scripts/repair-gateway.sh
+```
+
+Para aplicar o reparo no laboratório e iniciar o painel:
+
+```sh
+sudo bash scripts/repair-gateway.sh --apply --start
+```
+
+Ele exige os serviços inativos, verifica os arquivos, faz backup de `nginx.conf`,
+corrige os três caminhos e valida Nginx como kore-edge. Se a validação falhar,
+restaura a configuração anterior. Senha, certificado, domínio, porta e binários
+são preservados. Esse reparo não reinstala pacotes nem recompila o sistema.
+Com `--start`, verifica o core e inicia os dois serviços próprios; se o início
+falhar, para os novos serviços e deixa a configuração corrigida para inspeção.
+O endereço do painel é mostrado ao final. A instalação não fica habilitada no boot.
+
+O reparo recupera os arquivos já publicados antes da falha. Não substitui o
+bootstrap completo e não gera um novo manifesto de instalação. Futuras trocas
+de release continuam exigindo o procedimento operacional revisado.
+
+### Acesso ao painel
 
 Se escolheu iniciar, abra a URL HTTPS mostrada no seu computador. Digite o usuário
 e a senha cadastrados quando o navegador solicitar. Não precisa de túnel SSH.

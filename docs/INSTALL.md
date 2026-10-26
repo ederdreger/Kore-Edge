@@ -37,6 +37,20 @@ servidor. No modo VPS, são adicionados nginx, openssl e apache2-utils para HTTP
 com senha. Sem `--public-host`, o modo por parâmetros continua local e não instala
 Nginx. TSDuck não é uma dependência do código atual.
 
+O gateway define explicitamente client_body_temp_path, proxy_temp_path,
+fastcgi_temp_path, uwsgi_temp_path e scgi_temp_path sob
+`/var/cache/kore-edge/gateway`. Os cinco diretórios são criados como kore-edge,
+modo 0700; não há necessidade de escrita em `/var/lib/nginx`. Para instalação
+parcial que falhou na validação desse cache, `scripts/repair-gateway.sh` mostra
+o plano; `sudo bash scripts/repair-gateway.sh --apply --start` aplica o reparo
+explicitamente no laboratório. O script exige unidades próprias inativas e sem
+Nginx em execução, reconhece configuração/backend e faz backup privado antes de
+alterar somente as três diretivas omitidas. Restaura o arquivo se `nginx -t` falhar;
+preserva certificados, bcrypt, usuário, host, ports e binários. Não reconstitui um
+manifesto de instalação completo que não chegou a ser publicado. Não há APT ou
+alteração de unidades nesse reparo; daemon-reload/validação/start só afetam as
+unidades próprias verificadas. Sem `--start`, os serviços continuam parados.
+
 Fontes de referência: [pacotes Ubuntu](https://packages.ubuntu.com/),
 [GitHub CLI](https://cli.github.com/manual/gh_repo_create) e
 [setup-go](https://github.com/actions/setup-go). As versões APT vêm do host Ubuntu;

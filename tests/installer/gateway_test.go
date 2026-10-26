@@ -41,6 +41,11 @@ func TestGatewayHostValidationAndRendering(t *testing.T) {
 		t.Fatal(e)
 	}
 	config := string(out)
+	for _, name := range []string{"client_body", "proxy", "fastcgi", "uwsgi", "scgi"} {
+		if !strings.Contains(config, name+"_temp_path /var/cache/kore-edge/gateway/") {
+			t.Fatal("temporary path not isolated", name)
+		}
+	}
 	for _, required := range []string{"auth_basic_user_file", "ssl_certificate_key", "limit_except GET HEAD { deny all; }", "proxy_set_header Authorization \"\"", "proxy_set_header Origin \"\"", "access_log off", "proxy_pass http://127.0.0.1:18080"} {
 		if !strings.Contains(config, required) {
 			t.Fatal("gateway missing protection", required)
@@ -119,6 +124,12 @@ func TestAuthenticatedHTTPSGateway(t *testing.T) {
 	if output, e := check.CombinedOutput(); e != nil {
 		t.Fatal("Nginx validation failed", string(output))
 	}
+	for _, name := range []string{"client", "proxy", "fastcgi", "uwsgi", "scgi"} {
+		info, e := os.Stat(filepath.Join(cache, name))
+		if e != nil || !info.IsDir() {
+			t.Fatal("Nginx temp directory missing from private cache", name)
+		}
+	}
 	process := exec.Command(nginx, "-c", path, "-g", "daemon off;")
 	if process.Start() != nil {
 		t.Fatal("Nginx could not start")
@@ -190,5 +201,40 @@ func TestAuthenticatedHTTPSGateway(t *testing.T) {
 		if response.StatusCode != 200 {
 			t.Fatal("dashboard burst was throttled", response.StatusCode)
 		}
+	}
+}
+
+func TestGatewayTempRepairPreservesConfiguration(t *testing.T) {
+	render := exec.Command(bash(t), "-c", `source ../../scripts/gateway-lib.sh; render_gateway panel.example.com 8443 127.0.0.1:18080 0`)
+	want, e := render.Output()
+	if e != nil {
+		t.Fatal(e)
+	}
+	legacy := string(want)
+	for _, name := range []string{"fastcgi", "uwsgi", "scgi"} {
+		legacy = strings.ReplaceAll(legacy, "  "+name+"_temp_path /var/cache/kore-edge/gateway/"+name+";\n", "")
+	}
+	path := filepath.Join(t.TempDir(), "nginx.conf")
+	if os.WriteFile(path, []byte(legacy), 0600) != nil {
+		t.Fatal("legacy fixture")
+	}
+	patch := func() []byte {
+		t.Helper()
+		command := exec.Command(bash(t), "-c", `path=$1; if command -v cygpath >/dev/null 2>&1; then path=$(cygpath -u "$path"); fi; source ../../scripts/gateway-lib.sh; repair_gateway_temp_paths "$path"`, "patch", path)
+		out, e := command.Output()
+		if e != nil {
+			t.Fatal(e)
+		}
+		return out
+	}
+	got := patch()
+	if string(got) != string(want) {
+		t.Fatal("repair changed configuration beyond missing temporary paths")
+	}
+	if os.WriteFile(path, got, 0600) != nil {
+		t.Fatal("repaired fixture")
+	}
+	if string(patch()) != string(want) {
+		t.Fatal("repair not idempotent")
 	}
 }
