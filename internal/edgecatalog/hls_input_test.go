@@ -27,6 +27,9 @@ func TestPrivateHLSInputNeverAcceptsExternalOrOtherChannelReferences(t *testing.
 			t.Fatal("unsafe reference accepted")
 		}
 	}
+	if _, e := privatePlaylist([]byte("#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=https://external.invalid/key\n"), "channel", base); e == nil {
+		t.Fatal("unquoted URI bypass accepted")
+	}
 }
 
 func TestSyntheticHLSRemuxWithOpaqueSegmentPaths(t *testing.T) {

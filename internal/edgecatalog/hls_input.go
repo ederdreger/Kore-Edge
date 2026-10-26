@@ -30,6 +30,7 @@ func (p *processInput) Close() error {
 }
 
 var playlistURI = regexp.MustCompile(`URI="([^"]+)"`)
+var anyPlaylistURI = regexp.MustCompile(`(?i)\bURI\s*=`)
 
 func privatePlaylist(data []byte, id, base string) ([]byte, error) {
 	if len(data) > 1024*1024 || !bytes.HasPrefix(data, []byte("#EXTM3U")) {
@@ -55,6 +56,9 @@ func privatePlaylist(data []byte, id, base string) ([]byte, error) {
 	for i, line := range lines {
 		line = strings.TrimSuffix(line, "\r")
 		if strings.HasPrefix(line, "#") {
+			if len(anyPlaylistURI.FindAllString(line, -1)) != len(playlistURI.FindAllString(line, -1)) {
+				return nil, ErrIntegrity
+			}
 			line = playlistURI.ReplaceAllStringFunc(line, func(match string) string { return `URI="` + replace(playlistURI.FindStringSubmatch(match)[1]) + `"` })
 		} else if strings.TrimSpace(line) != "" {
 			line = replace(strings.TrimSpace(line))
