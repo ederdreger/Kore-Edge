@@ -22,7 +22,12 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/kore-nginx"
           cd "$RUNNER_TEMP/kore-nginx"
-          apt-get download nginx apache2-utils libapr1t64 libaprutil1t64
+          mkdir -p lists/partial cache/archives/partial
+          apt_options=(-o "Dir::State::lists=$PWD/lists" -o "Dir::Cache=$PWD/cache"
+            -o "Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources"
+            -o "Dir::Etc::sourceparts=-")
+          apt-get "${apt_options[@]}" update
+          apt-get "${apt_options[@]}" download nginx apache2-utils libapr1t64 libaprutil1t64
           for package in ./*.deb; do dpkg-deb -x "$package" root; done
           echo "KORE_EDGE_NGINX=$PWD/root/usr/sbin/nginx" >> "$GITHUB_ENV"
           echo "KORE_EDGE_HTPASSWD=$PWD/root/usr/bin/htpasswd" >> "$GITHUB_ENV"
