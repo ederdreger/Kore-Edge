@@ -165,24 +165,29 @@ func TestNativeHLSRemuxUsesPrivateAuthenticatedReferences(t *testing.T) {
 			return nil, ErrDenied
 		}
 	})}
-	id, e := s.Save(Source{URL: "https://synthetic-user:synthetic-password@media.example/input/index.m3u8", Enabled: true}, 0)
-	if e != nil {
-		t.Fatal(e)
-	}
-	reader, e := s.OpenHLS(ctx, id, tool)
-	if e != nil {
-		t.Fatal(e)
-	}
-	defer reader.Close()
-	data := make([]byte, 1316)
-	if _, e = io.ReadFull(reader, data); e != nil || !transport(data) {
+	for _, entry := range []string{"index.m3u8", "variant.m3u8"} {
+		diagnostic.Reset()
+		before := requests.Load()
+		id, e := s.Save(Source{URL: "https://synthetic-user:synthetic-password@media.example/input/" + entry, Enabled: true}, s.Revision())
+		if e != nil {
+			t.Fatal(e)
+		}
+		reader, e := s.OpenHLS(ctx, id, tool)
+		if e != nil {
+			t.Fatal(e)
+		}
+		defer reader.Close()
+		data := make([]byte, 1316)
+		if _, e = io.ReadFull(reader, data); e != nil || !transport(data) {
+			reader.Close()
+			safe := strings.ReplaceAll(diagnostic.String(), "synthetic-password", "[credential]")
+			safe = regexp.MustCompile(`https?://[^\s'"\]]+`).ReplaceAllString(safe, "[private-relay]")
+			t.Fatal("HLS remux failed", e, safe)
+		}
 		reader.Close()
-		safe := strings.ReplaceAll(diagnostic.String(), "synthetic-password", "[credential]")
-		safe = regexp.MustCompile(`https?://[^\s'"\]]+`).ReplaceAllString(safe, "[private-relay]")
-		t.Fatal("HLS remux failed", e, safe)
-	}
-	if requests.Load() < 3 {
-		t.Fatal("variant/segment not fetched")
+		if requests.Load()-before < 3 {
+			t.Fatal("variant/segment not fetched")
+		}
 	}
 }
 

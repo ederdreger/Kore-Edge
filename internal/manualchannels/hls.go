@@ -79,7 +79,8 @@ func (r *references) get(key string) string {
 	if target != "" {
 		for i, item := range r.order {
 			if item == key {
-				r.order = append(append(r.order[:i:i], r.order[i+1:]...), key)
+				copy(r.order[i:], r.order[i+1:])
+				r.order[len(r.order)-1] = key
 				break
 			}
 		}
