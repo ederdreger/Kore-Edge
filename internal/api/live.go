@@ -115,7 +115,7 @@ func (a *API) liveHandler(w http.ResponseWriter, r *http.Request) {
 			message = "Canal, protocolo ou saída não autorizado. Revise a liberação do parceiro no Kore Play."
 		case errors.Is(e, live.ErrConflict):
 			code = 409
-			message = "A configuração mudou, há uma recepção ativa ou o limite foi atingido. Atualize e pare o canal antes de editar."
+			message = "A configuração mudou, as ferramentas estão em uso ou o limite foi atingido. Atualize a tela e confira o limite de canais ativos."
 		case errors.Is(e, live.ErrInvalid):
 			code = 400
 			message = "Confira o canal, o protocolo, os caminhos detectados e o destino/interface da saída."

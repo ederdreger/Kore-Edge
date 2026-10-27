@@ -85,3 +85,24 @@ O catálogo central testa preparação SRT sem listener e compatibilidade de gra
 Isso não homologa banda, perdas, codecs de cada canal ou a rede física. A porta
 proposta e os destinos multicast continuam pendentes de confirmação humana.
 Veja o [passo a passo](../DISTRIBUICAO-AO-VIVO.md).
+
+## Controle simplificado atual
+
+Iniciar/Parar executam diretamente com sessão administrativa e CSRF, sem modal.
+Configurar um canal ativo valida e persiste antes de cancelar o job antigo;
+somente esse canal é reiniciado. A troca pode causar breve interrupção e fechar
+uma prévia existente. Reabrir o player usa o novo fluxo compartilhado.
+
+O reconciliador prepara e inicia entradas Kore Play autorizadas sem navegador,
+com seleção existente preservada, até 16 ativas e 512 configurações. A fila
+mostra Aguardando vaga. Parar persiste pausa e cancela retomada; Iniciar remove
+a pausa. Jobs com falha terminal só voltam por Iniciar ou retomada do agente,
+sem loop infinito de reconexão. Canais manuais não entram na descoberta automática.
+Saídas novas não são habilitadas implicitamente; saídas antigas sem permissão
+de retomada exigem início explícito. Inventário e destinos UDP continuam exigindo
+revisão no formulário. Nenhum serviço do host ou rede é alterado pelo reconciliador.
+
+Aceite automatizado: início sem configuração prévia, parada persistida após
+reabrir armazenamento, fila e liberação de vaga, exclusão dos cadastros manuais,
+revogação, rejeição de edição inválida sem interrupção, isolamento da
+recepção vizinha e botão alternado sem confirmação. Testes usam fontes sintéticas.

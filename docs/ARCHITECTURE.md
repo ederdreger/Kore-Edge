@@ -4,8 +4,9 @@
 
 `internal/live` liga o catálogo do parceiro às saídas reais, sem alterar o
 contrato sintético do Stream Engine antigo. Configurações ficam privadas fora
-do checkout. Salvar e verificar destino não abrem mídia. Início exige sessão
-administrativa, CSRF, confirmação e geração revisada. Não pede novamente senha para operar canais. Há uma origem por
+do checkout. Verificar destino não abre mídia. Salvar em canal ativo valida antes e reinicia
+apenas a recepção alterada. Início/parada pelo painel exigem sessão
+administrativa, CSRF, auditoria e geração vigente, sem confirmação adicional. Não pede novamente senha para operar canais. Há uma origem por
 canal e fan-out limitado para prévias, UDP e segmentador HLS. Revogação encerra
 o fluxo; a lease assinada não é estendida por falhas de sincronização.
 
@@ -156,3 +157,7 @@ recepção contínua e fan-out para player/UDP/HLS. `ChannelChange` serializa
 operações, revalida a conta e audita sem reentrada de senha, preservando CSRF.
 Origem e ferramentas não entram em logs/argv; HLS passa por relay loopback privado.
 Detalhes e limites em [cadastro manual](modules/20-manual-channels.md).
+
+O reconciliador de recepção Kore Play executa no agente a cada cinco segundos,
+com fila, limite de 16 canais ativos e pausa manual persistida em `auto_paused`.
+Não estende grants nem reinicia jobs com falha terminal indefinidamente.

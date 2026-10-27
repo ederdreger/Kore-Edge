@@ -5,7 +5,7 @@
 Em **Canais → Adicionar canal**, cole a saída do Flussonic ou de outra matriz:
 HTTP MPEG-TS (`/mpegts` ou `.ts`), HLS (`.m3u8`), UDP MPEG-TS ou SRT caller.
 O protocolo aparece ao digitar; **Verificar sinal** faz uma leitura curta e
-**Salvar canal** prepara a recepção sem conectar. Depois use **Iniciar recepção**
+**Salvar canal** prepara a recepção sem conectar. Depois use **Iniciar canal**
 para manter o fluxo aberto, compartilhado com o player e as saídas UDP/HLS.
 Links sem extensão podem ser identificados pelo teste. UDP exige interface e IP
 local confirmados; o stream ID Flussonic `#!::r=CANAL,m=request` é preservado.
@@ -18,8 +18,7 @@ permissões da matriz. Consulte o [passo a passo e limites](docs/modules/20-manu
 
 ## Recepção contínua, SRT e saídas reais
 
-**Canais** concentra cadastro, origem, recepção e saídas UDP/HLS por canal. O menu duplicado **Saídas** foi removido; links antigos abrem **Canais**. Configure um canal, salve a preparação e só então confirme **Iniciar
-recepção**. O fluxo permanece aberto com o player fechado e é compartilhado com
+**Canais** concentra cadastro, origem, recepção e saídas UDP/HLS por canal. O menu duplicado **Saídas** foi removido; links antigos abrem **Canais**. Configure um canal, salve a configuração e use **Iniciar canal**. O fluxo permanece aberto com o player fechado e é compartilhado com
 as saídas autorizadas. O painel informa tempo até o primeiro sinal, bitrate
 medido, continuidade TS, falhas e permissões; métricas ausentes não são simuladas.
 
@@ -328,3 +327,20 @@ a configuração. A cópia de dados públicos confirma sucesso ou orienta Ctrl+C
 Veja [habilitação, pré-verificação, aplicação e rollback](docs/modules/17-wireguard-connection.md).
 
 A janela de configuração abre imediatamente, com carregamento e nova tentativa em caso de falha. Inventário de rede indisponível bloqueia UDP, sem impedir preparar entradas HTTP/HLS/SRT. Nenhuma permissão de rede do serviço foi ampliada.
+
+## Controle simples de recepção
+
+Cada canal tem um controle que alterna entre **Iniciar** e **Parar**, sem senha ou
+janela de confirmação adicional. Sessão administrativa, CSRF, auditoria e
+controle de geração continuam obrigatórios. A engrenagem permite configurar um
+canal ativo: salvar valida primeiro e reinicia apenas esse canal, com breve
+interrupção. Configuração rejeitada não encerra a recepção atual.
+
+O agente inicia os canais autorizados do Kore Play sem depender do navegador.
+Uma seleção existente de protocolo é preservada; entradas novas preferem MPEG-TS
+HTTP, depois SRT e HLS, conforme a oferta da matriz. Não cria saídas UDP/HLS
+implicitamente. Saídas antigas preparadas sem retomada autorizada exigem Iniciar.
+Parar persiste a pausa; Iniciar libera novamente o canal. Canais cadastrados
+manualmente continuam com início manual. Há até 16 recepções simultâneas;
+os demais aguardam vaga. Falhas têm tentativas limitadas e exigem novo Iniciar
+após esgotar o backoff. Revogação e expiração continuam encerrando a mídia.

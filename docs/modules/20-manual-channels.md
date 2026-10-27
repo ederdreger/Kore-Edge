@@ -9,7 +9,7 @@
 4. **Verificar sinal** recebe uma amostra curta. Em HTTP sem extensão, também
    identifica o formato real. É opcional para links com formato conhecido.
 5. Clique em **Salvar canal**. Isso prepara a recepção, sem abrir a origem.
-6. Na lista, selecione o canal e clique em **Iniciar recepção**. Revise e confirme.
+6. Na lista, selecione o canal e clique em **Iniciar canal**. O botão passa a **Parar canal**.
    O bitrate, o primeiro sinal e os contadores de transporte são medições reais.
 7. Use **Reproduzir canal**. A prévia compartilha o fluxo já aberto e fechá-la não
    interrompe a recepção. Canais manuais parados não são iniciados pelo player.

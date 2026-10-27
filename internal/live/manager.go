@@ -61,6 +61,8 @@ type Manager struct {
 	open         SourceOpener
 	interfaces   func() ([]multicast.Interface, error)
 	udpOpen      func(context.Context, multicast.Target, []multicast.Interface) (*multicast.Sender, error)
+	autoWG       sync.WaitGroup
+	autoOnce     sync.Once
 	closed       bool
 	previewSlots chan struct{}
 }
@@ -132,7 +134,24 @@ func (m *Manager) Snapshot() Snapshot {
 		}
 		streams = append(streams, status)
 	}
-	view := Snapshot{Configuration: m.store.snapshot(), Catalog: m.catalog.Snapshot(), Streams: streams, MaxActive: 16}
+	configuration := m.store.snapshot()
+	for _, c := range configuration.Channels {
+		found := false
+		for _, s := range streams {
+			if s.ChannelID == c.ChannelID {
+				found = true
+				break
+			}
+		}
+		if !found && c.Resume && !c.AutoPaused {
+			state := "queued"
+			if !m.catalog.Authorized(c.ChannelID, c.Protocol) {
+				state = "unauthorized"
+			}
+			streams = append(streams, Status{ChannelID: c.ChannelID, Protocol: c.Protocol, State: state, UDP: "disabled", HLS: "disabled"})
+		}
+	}
+	view := Snapshot{Configuration: configuration, Catalog: m.catalog.Snapshot(), Streams: streams, MaxActive: 16}
 	if local, ok := m.catalog.(interface{ Revision() uint64 }); ok {
 		view.ManualRevision = local.Revision()
 	}
@@ -208,7 +227,7 @@ func (m *Manager) Save(config ChannelConfig, tools Tools, expected uint64) error
 		select {
 		case <-j.done:
 		default:
-			if j.config.ChannelID == config.ChannelID || current.Tools != tools {
+			if j.config.ChannelID != config.ChannelID && current.Tools != tools {
 				return ErrConflict
 			}
 		}
@@ -217,6 +236,7 @@ func (m *Manager) Save(config ChannelConfig, tools Tools, expected uint64) error
 	found := false
 	for i, entry := range current.Channels {
 		if entry.ChannelID == config.ChannelID {
+			config.AutoPaused = entry.AutoPaused
 			current.Channels[i] = config
 			found = true
 			break
@@ -225,7 +245,23 @@ func (m *Manager) Save(config ChannelConfig, tools Tools, expected uint64) error
 	if !found {
 		current.Channels = append(current.Channels, config)
 	}
-	return m.store.replace(current, expected)
+	if e := m.store.replace(current, expected); e != nil {
+		return e
+	}
+	if j := m.jobs[config.ChannelID]; j != nil {
+		select {
+		case <-j.done:
+		default:
+			j.cancel()
+			select {
+			case <-j.done:
+			case <-time.After(3 * time.Second):
+				return ErrUnavailable
+			}
+			return m.startLocked(config.ChannelID)
+		}
+	}
+	return nil
 }
 func (m *Manager) PlanUDP(target multicast.Target) (multicast.Plan, error) {
 	if !m.catalog.OutputAuthorized(target.ChannelID, "udp") {
@@ -248,7 +284,7 @@ func (m *Manager) StartReviewed(id string, expected uint64) error {
 	if m.store.snapshot().Generation != expected {
 		return ErrConflict
 	}
-	return m.startLocked(id)
+	return m.prepareStartLocked(id)
 }
 func (m *Manager) startLocked(id string) error {
 	if m.closed || m.ctx.Err() != nil {
@@ -303,8 +339,9 @@ func (m *Manager) Stop(id string) error {
 	}
 	current := m.store.snapshot()
 	for i, entry := range current.Channels {
-		if entry.ChannelID == id && entry.Resume {
+		if entry.ChannelID == id && (entry.Resume || !entry.AutoPaused) {
 			current.Channels[i].Resume = false
+			current.Channels[i].AutoPaused = true
 			return m.store.replace(current, current.Generation)
 		}
 	}
@@ -329,6 +366,7 @@ func (m *Manager) Close() {
 	for _, j := range jobs {
 		<-j.done
 	}
+	m.autoWG.Wait()
 }
 func (m *Manager) run(j *job) {
 	defer close(j.done)
