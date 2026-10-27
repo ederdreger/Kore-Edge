@@ -2,9 +2,11 @@ package live
 
 import (
 	"context"
+	"errors"
 	"io"
 	"kore-edge/internal/edgecatalog"
 	"kore-edge/internal/hls"
+	"kore-edge/internal/mediaresources"
 	"kore-edge/internal/multicast"
 	"sync"
 	"time"
@@ -52,6 +54,7 @@ type job struct {
 	udp         Output
 	hlsManager  *hls.Manager
 	hlsOutput   Output
+	hlsRelease  func()
 	hlsStarting bool
 	hlsWG       sync.WaitGroup
 }
@@ -412,12 +415,22 @@ func (m *Manager) run(j *job) {
 			attempt = 0
 		}
 		delay := m.retryDelay(attempt)
+		queued := errors.Is(e, mediaresources.ErrBusy)
+		if queued {
+			delay = 2 * time.Second
+		}
 		j.mu.Lock()
-		j.status.Interruptions++
-		j.status.LastFailureAt = time.Now().UTC()
+		if !queued {
+			j.status.Interruptions++
+			j.status.LastFailureAt = time.Now().UTC()
+		}
 		j.status.NextRetryAt = time.Now().UTC().Add(delay)
 		j.mu.Unlock()
-		j.setState("backoff", "source_interrupted")
+		if queued {
+			j.setState("queued", "media_resources_busy")
+		} else {
+			j.setState("backoff", "source_interrupted")
+		}
 		timer := time.NewTimer(delay)
 		select {
 		case <-j.ctx.Done():

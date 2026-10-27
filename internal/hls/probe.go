@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"kore-edge/internal/mediaresources"
 	"os/exec"
 	"time"
 )
@@ -22,6 +23,7 @@ func (b *cappedBuffer) Write(p []byte) (int, error) {
 }
 func commandOutput(ctx context.Context, path string, args []string, input io.Reader, limit int) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, path, args...)
+	mediaresources.Configure(cmd)
 	cmd.Stdin = input
 	cmd.WaitDelay = time.Second
 	out := &cappedBuffer{limit: limit}

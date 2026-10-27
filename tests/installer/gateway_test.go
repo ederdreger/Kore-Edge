@@ -497,3 +497,27 @@ func TestPanelUpdateAndRecoveryArePlanByDefault(t *testing.T) {
 		}
 	}
 }
+
+func TestPostUpdateObservationRejectsCrashAndRestart(t *testing.T) {
+	for _, mode := range []string{"stable", "restart", "api-down", "gateway-down"} {
+		t.Run(mode, func(t *testing.T) {
+			cmd := exec.Command(bash(t), "-c", `source ../../scripts/gateway-lib.sh
+mode=$1
+counter=$2
+printf '0' > "$counter"
+systemctl(){
+ if [[ $1 == show ]]; then
+  local n; n=$(cat "$counter"); n=$((n+1)); printf '%s' "$n" > "$counter"
+  if [[ $mode == restart && $n -gt 3 ]]; then printf '124\n'; else printf '123\n'; fi
+ elif [[ $mode == gateway-down ]]; then return 1; fi
+}
+curl(){ [[ $mode != api-down ]]; }
+sleep(){ :; }
+check_panel_stability 127.0.0.1:18080
+`, "synthetic-check", mode, filepath.Join(t.TempDir(), "count"))
+			if (cmd.Run() == nil) != (mode == "stable") {
+				t.Fatal("incorrect stability result", mode)
+			}
+		})
+	}
+}

@@ -76,6 +76,9 @@ origin=$(gateway_url "$host" "$port"); origin=${origin%/}
 backup=$(mktemp -d /etc/kore-edge/panel-before.XXXXXXXX)
 cp -p "$config" "$backup/edge.yaml"
 cp -p "$gateway" "$backup/nginx.conf"
+live_config=/var/lib/kore-edge/users/live/distribution.json
+[[ ! -L /var/lib/kore-edge/users/live && ! -L $live_config ]] || die 'Configuracao de recepcao com symlink inesperado.'
+if [[ -f $live_config ]]; then cp -p "$live_config" "$backup/distribution.json"; else touch "$backup/distribution-absent"; fi
 printf '%s\n' "$old_release" >"$backup/release"
 printf 'Backup para rollback: %s\n' "$backup"
 changed=0
@@ -85,6 +88,11 @@ rollback(){
   printf 'Validacao falhou; restaurando configuracao e release anteriores.\n' >&2
   systemctl stop kore-edge-gateway.service kore-edge.service || true
   cp -p "$backup/edge.yaml" "$config"; cp -p "$backup/nginx.conf" "$gateway"
+  if [[ -f "$backup/distribution.json" ]]; then
+   cp -p "$backup/distribution.json" "$live_config"
+  elif [[ -f "$backup/distribution-absent" && -f $live_config && ! -L $live_config ]]; then
+   mv -- "$live_config" "$backup/distribution-after-failure.json"
+  fi
   ln -s "$old_release" /opt/kore-edge/.panel-rollback; mv -Tf /opt/kore-edge/.panel-rollback /opt/kore-edge/current
   systemctl start kore-edge.service kore-edge-gateway.service || printf 'Rollback exige revisao manual.\n' >&2
  fi
@@ -118,6 +126,7 @@ fi
 if ! check_panel_assets "$host" "$port" /etc/kore-edge/gateway/server.crt; then
  die "Validacao da interface falhou: $GATEWAY_CHECK_ERROR. Rollback sera executado."
 fi
+check_panel_stability "$backend" || die 'API ou servicos instaveis durante 30 segundos; restaurando versao anterior.'
 changed=0
 printf 'Atualizacao concluida: %s\nUse o mesmo usuario e senha anteriores. Abra uma janela privativa.\n' "$origin"
 printf 'Rollback manual (com servicos parados): restaurar arquivos de %s e o symlink indicado em release.\n' "$backup"
