@@ -18,8 +18,7 @@ permissões da matriz. Consulte o [passo a passo e limites](docs/modules/20-manu
 
 ## Recepção contínua, SRT e saídas reais
 
-**Canais**, **Multicast UDP** e **HTTP / HLS** agora consultam o mesmo catálogo do
-parceiro. Configure um canal, salve a preparação e só então confirme **Iniciar
+**Canais** concentra cadastro, origem, recepção e saídas UDP/HLS por canal. O menu duplicado **Saídas** foi removido; links antigos abrem **Canais**. Configure um canal, salve a preparação e só então confirme **Iniciar
 recepção**. O fluxo permanece aberto com o player fechado e é compartilhado com
 as saídas autorizadas. O painel informa tempo até o primeiro sinal, bitrate
 medido, continuidade TS, falhas e permissões; métricas ausentes não são simuladas.
@@ -327,3 +326,5 @@ O assistente sincroniza peers por código temporário e permite revisar/ativar o
 túnel real com auxiliar local restrito. Salvar dados continua apenas preparando
 a configuração. A cópia de dados públicos confirma sucesso ou orienta Ctrl+C.
 Veja [habilitação, pré-verificação, aplicação e rollback](docs/modules/17-wireguard-connection.md).
+
+A janela de configuração abre imediatamente, com carregamento e nova tentativa em caso de falha. Inventário de rede indisponível bloqueia UDP, sem impedir preparar entradas HTTP/HLS/SRT. Nenhuma permissão de rede do serviço foi ampliada.

@@ -6,7 +6,7 @@ export type LiveConfig={channel_id:string;protocol:string;udp?:Target;hls:boolea
 export type Tools={ffmpeg:string;ffprobe:string};
 export type LiveStream={channel_id:string;protocol:string;state:string;error?:string;startup_ms:number|null;attempts:number;started_at:string;udp_state:string;hls_state:string;metrics:{transport?:{cc_state:string;cc_errors:number;tei:number;malformed:number;pcr_state:string};bits_per_second:number|null;bytes:number;subscribers:number;last_packet_at:string}};
 export type LiveView={manual_revision?:number;configuration:{generation:number;tools:Tools;channels:LiveConfig[]};catalog:{available:boolean;configured:boolean;last_sync:string;catalog:null|{partner_name:string;channels:LiveChannel[];srt?:{port:number;latency_ms:number}}};streams:LiveStream[];max_active:number};
-export type Capabilities={tools:Tools;platform:string;interfaces:{name:string;up:boolean;multicast:boolean;ipv4:string[]}[]};
+export type Capabilities={interfaces_available?:boolean;warning?:string;tools:Tools;platform:string;interfaces:{name:string;up:boolean;multicast:boolean;ipv4:string[]}[]};
 export const stateLabel=(state?:string)=>({running:'Recebendo',starting:'Iniciando',backoff:'Reconectando',failed:'Falha',unauthorized:'Não autorizado',stopped:'Parado',sending:'Enviando',disabled:'Desativada',warming:'Preparando segmentos',validating_codecs:'Verificando codecs',codec_or_tools_unavailable:'Codecs ou ferramentas incompatíveis',interface_or_permission_unavailable:'Interface ou permissão indisponível'}[state||'']||state||'Não iniciada');
 export function useLiveDistribution(){
  const account=useAccount(),request=useRef(account?.request);request.current=account?.request;

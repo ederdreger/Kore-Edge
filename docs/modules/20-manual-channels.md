@@ -14,7 +14,7 @@
 7. Use **Reproduzir canal**. A prévia compartilha o fluxo já aberto e fechá-la não
    interrompe a recepção. Canais manuais parados não são iniciados pelo player.
 8. Em **Recepção e saídas**, configure HLS local e/ou multicast UDP, se necessários.
-   Os mesmos canais aparecem nas páginas UDP e HTTP/HLS. Para editar a origem,
+   As saídas ficam no próprio canal. Para editar a origem,
    pare a recepção e use **Editar origem**. Ao editar apenas o nome/categoria,
    deixe o link vazio: usuário, senha e parâmetros cadastrados serão preservados.
 
@@ -147,3 +147,5 @@ sistema, não alterar rede/firewall e não regenerar as credenciais WireGuard.
 Pós-validação: `/healthz` e `/readyz` 200, API de cadastros sem sessão 401, nova
 tela disponível, cadastros anteriores preservados e nenhuma origem nova iniciada
 automaticamente. A retomada de planos já autorizados segue o contrato de `live`.
+
+A navegação de saídas foi consolidada em **Canais**. Use a engrenagem ou **Recepção e saídas** para preparar cada canal; os endereços antigos `#udp` e `#hls` abrem essa tela. A janela abre antes da consulta de ferramentas e permite repetir uma consulta que falhou. Inventário indisponível impede UDP, sem inventar interfaces ou alterar o sandbox do serviço.
