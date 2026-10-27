@@ -1,5 +1,21 @@
 # Kore Edge — Plano mestre de desenvolvimento
 
+## Cadastro de canais pelo link da matriz
+
+Em **Canais → Adicionar canal**, cole a saída do Flussonic ou de outra matriz:
+HTTP MPEG-TS (`/mpegts` ou `.ts`), HLS (`.m3u8`), UDP MPEG-TS ou SRT caller.
+O protocolo aparece ao digitar; **Verificar sinal** faz uma leitura curta e
+**Salvar canal** prepara a recepção sem conectar. Depois use **Iniciar recepção**
+para manter o fluxo aberto, compartilhado com o player e as saídas UDP/HLS.
+Links sem extensão podem ser identificados pelo teste. UDP exige interface e IP
+local confirmados; o stream ID Flussonic `#!::r=CANAL,m=request` é preservado.
+
+Cadastro, teste e operação dos canais usam a sessão administrativa já autenticada,
+com CSRF e auditoria, **sem solicitar novamente a senha**. Espectadores continuam
+somente leitura. Credenciais das origens ficam em armazenamento privado e não
+aparecem na listagem. Os canais do catálogo automático continuam sujeitos às
+permissões da matriz. Consulte o [passo a passo e limites](docs/modules/20-manual-channels.md).
+
 ## Recepção contínua, SRT e saídas reais
 
 **Canais**, **Multicast UDP** e **HTTP / HLS** agora consultam o mesmo catálogo do

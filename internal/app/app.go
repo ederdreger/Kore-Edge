@@ -21,6 +21,7 @@ import (
 	"kore-edge/internal/hls"
 	"kore-edge/internal/integration"
 	"kore-edge/internal/live"
+	"kore-edge/internal/manualchannels"
 	"kore-edge/internal/monitoring"
 	"kore-edge/internal/provision"
 	"kore-edge/internal/security"
@@ -184,14 +185,30 @@ func servePanel(ctx context.Context, ln net.Listener, store *catalog.Store, engi
 		}
 	}
 	var distribution *live.Manager
+	var direct *manualchannels.Service
+	var sourceCatalog live.Catalog
 	if partnerCatalog != nil {
-		distribution, _ = live.New(ctx, filepath.Join(users.Directory(), "live"), partnerCatalog)
+		sourceCatalog = partnerCatalog
+	}
+	if users != nil {
+		var fallback manualchannels.Catalog
+		if partnerCatalog != nil {
+			fallback = partnerCatalog
+		}
+		direct, _ = manualchannels.New(filepath.Join(users.Directory(), "manual-channels"), fallback)
+		if direct != nil {
+			defer direct.Close()
+			sourceCatalog = direct
+		}
+	}
+	if sourceCatalog != nil {
+		distribution, _ = live.New(ctx, filepath.Join(users.Directory(), "live"), sourceCatalog)
 		if distribution != nil {
 			defer distribution.Close()
 			distribution.Resume()
 		}
 	}
-	a := &api.API{Live: distribution, PartnerCatalog: partnerCatalog, WireGuardCredentials: wgCredentials, Mode: mode, Accounts: users, PublicOrigin: origin, Integration: synchronizer, Security: guard, Catalog: store, Streams: engine, HLS: manager, Monitoring: observer, Provision: registry, ProvisionEdgeID: edgeID}
+	a := &api.API{ManualChannels: direct, Live: distribution, PartnerCatalog: partnerCatalog, WireGuardCredentials: wgCredentials, Mode: mode, Accounts: users, PublicOrigin: origin, Integration: synchronizer, Security: guard, Catalog: store, Streams: engine, HLS: manager, Monitoring: observer, Provision: registry, ProvisionEdgeID: edgeID}
 	server := a.Server()
 	server.TLSConfig = guard.TLSConfig()
 	server.ErrorLog = log.New(io.Discard, "", 0)

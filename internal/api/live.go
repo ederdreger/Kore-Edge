@@ -60,6 +60,7 @@ func (a *API) liveHandler(w http.ResponseWriter, r *http.Request) {
 			CurrentPassword string             `json:"current_password"`
 			Confirmed       bool               `json:"confirmed"`
 			Generation      uint64             `json:"generation"`
+			ManualRevision  uint64             `json:"manual_revision"`
 			Channel         live.ChannelConfig `json:"channel"`
 			ChannelID       string             `json:"channel_id"`
 			Tools           live.Tools         `json:"tools"`
@@ -68,13 +69,28 @@ func (a *API) liveHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(400)
 			return
 		}
+		if input.Action != "stop" && a.ManualChannels != nil && input.ManualRevision != a.ManualChannels.Revision() {
+			w.WriteHeader(409)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "O cadastro manual mudou. Atualize e revise o canal novamente."})
+			return
+		}
+		reviewed := func(change func() error) error {
+			if a.ManualChannels != nil && input.ManualRevision != a.ManualChannels.Revision() {
+				return live.ErrConflict
+			}
+			return change()
+		}
 		switch input.Action {
 		case "save":
-			e = a.Accounts.WireGuardChange(user, input.CurrentPassword, "live_config", func() error { return a.Live.Save(input.Channel, input.Tools, input.Generation) })
+			e = a.Accounts.ChannelChange(user, "live_config", func() error {
+				return reviewed(func() error { return a.Live.Save(input.Channel, input.Tools, input.Generation) })
+			})
 		case "start":
-			e = a.Accounts.WireGuardChange(user, input.CurrentPassword, "live_start", func() error { return a.Live.StartReviewed(input.ChannelID, input.Generation) })
+			e = a.Accounts.ChannelChange(user, "live_start", func() error {
+				return reviewed(func() error { return a.Live.StartReviewed(input.ChannelID, input.Generation) })
+			})
 		case "stop":
-			e = a.Accounts.WireGuardChange(user, input.CurrentPassword, "live_stop", func() error { return a.Live.Stop(input.ChannelID) })
+			e = a.Accounts.ChannelChange(user, "live_stop", func() error { return a.Live.Stop(input.ChannelID) })
 		default:
 			w.WriteHeader(400)
 			return
@@ -88,9 +104,12 @@ func (a *API) liveHandler(w http.ResponseWriter, r *http.Request) {
 		code := 503
 		message := "Operação indisponível. Confira a origem, as ferramentas e a configuração do canal."
 		switch {
+		case errors.Is(e, accounts.ErrBusy):
+			code = 429
+			message = "Há outra operação de canais em andamento. Aguarde antes de tentar novamente."
 		case errors.Is(e, accounts.ErrRejected):
 			code = 403
-			message = "Use a senha administrativa deste Edge."
+			message = "Esta operação exige uma sessão administrativa válida."
 		case errors.Is(e, live.ErrDenied):
 			code = 403
 			message = "Canal, protocolo ou saída não autorizado. Revise a liberação do parceiro no Kore Play."

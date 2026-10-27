@@ -10,6 +10,7 @@ import (
 	"kore-edge/internal/hls"
 	"kore-edge/internal/integration"
 	"kore-edge/internal/live"
+	"kore-edge/internal/manualchannels"
 	"kore-edge/internal/monitoring"
 	"kore-edge/internal/multicast"
 	"kore-edge/internal/provision"
@@ -24,6 +25,7 @@ import (
 )
 
 type API struct {
+	ManualChannels        *manualchannels.Service
 	Live                  *live.Manager
 	PartnerCatalog        *edgecatalog.Service
 	WireGuardCredentials  *wireguard.CredentialStore
@@ -53,6 +55,10 @@ func (a *API) Handler() http.Handler {
 	handler := guard.Wrap(a.routes())
 	if a.Accounts != nil {
 		panel := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/api/v1/manual-channels" || strings.HasPrefix(r.URL.Path, "/api/v1/manual-channels/") {
+				a.manualChannels(w, r)
+				return
+			}
 			if r.URL.Path == "/api/v1/live" || strings.HasPrefix(r.URL.Path, "/api/v1/live/") {
 				a.liveHandler(w, r)
 				return

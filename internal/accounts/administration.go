@@ -13,6 +13,52 @@ func UserFromContext(ctx context.Context) (User, bool) {
 	return u, ok
 }
 
+// ChannelChange uses the already verified panel session for routine channel
+// operations. It grants no access to host administration or account changes.
+// Wrap has checked Origin, session expiry and CSRF before populating actor.
+func (s *Store) ChannelChange(actor User, action string, change func() error) (result error) {
+	if !s.channelMu.TryLock() {
+		return ErrBusy
+	}
+	defer s.channelMu.Unlock()
+	s.mu.Lock()
+	if s.closed || actor.Role != "admin" || (action != "manual_channel_save" && action != "manual_channel_delete" && action != "manual_channel_probe" && action != "live_config" && action != "live_start" && action != "live_stop") {
+		s.mu.Unlock()
+		return ErrRejected
+	}
+	valid := false
+	for _, u := range s.db.Users {
+		if u.ID == actor.ID && u.Revision == actor.Revision && !u.Disabled && u.Role == "admin" {
+			valid = true
+		}
+	}
+	if !valid {
+		s.mu.Unlock()
+		return ErrRejected
+	}
+	nonce := token()
+	if len(nonce) < 16 {
+		s.mu.Unlock()
+		return ErrStorage
+	}
+	end, e := s.audit.Begin(security.Event{Time: time.Now().UTC(), RequestID: nonce[:16], PrincipalID: actor.ID, Role: "admin", Route: action, Method: "POST"})
+	s.mu.Unlock()
+	if e != nil {
+		return ErrStorage
+	}
+	status := 500
+	defer func() {
+		if end(status) != nil {
+			result = ErrStorage
+		}
+	}()
+	result = change()
+	if result == nil {
+		status = 200
+	}
+	return result
+}
+
 // WireGuardChange restricts a small set of local preparation operations. It does
 // not grant the session general access to operational APIs or host commands.
 func (s *Store) WireGuardChange(actor User, password, action string, change func() error) (result error) {

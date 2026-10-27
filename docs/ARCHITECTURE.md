@@ -5,7 +5,7 @@
 `internal/live` liga o catálogo do parceiro às saídas reais, sem alterar o
 contrato sintético do Stream Engine antigo. Configurações ficam privadas fora
 do checkout. Salvar e verificar destino não abrem mídia. Início exige sessão
-administrativa, CSRF, senha, confirmação e geração revisada. Há uma origem por
+administrativa, CSRF, confirmação e geração revisada. Não pede novamente senha para operar canais. Há uma origem por
 canal e fan-out limitado para prévias, UDP e segmentador HLS. Revogação encerra
 o fluxo; a lease assinada não é estendida por falhas de sincronização.
 
@@ -143,3 +143,16 @@ rollback, sem chaves privadas. Uma falha interrompida exige recuperação explí
 Código temporário HTTPS sincroniza dados públicos com prova X25519/HMAC; nenhum
 endpoint público fornece comandos, caminhos ou chaves privadas ao auxiliar.
 Contrato e limites em [conexão WireGuard](modules/17-wireguard-connection.md).
+
+
+## Entradas manuais por URL
+
+`internal/manualchannels` implementa HTTP MPEG-TS, HLS, UDP MPEG-TS e SRT caller
+com persistência privada e inventário sem credenciais. O adaptador combina somente
+a apresentação dos catálogos: autorização dos canais importados segue delegada
+à central, sem estender grants ou leases. Entradas locais usam `local_` e são
+geridas pela conta administrativa autenticada. A mesma instância de `live` faz
+recepção contínua e fan-out para player/UDP/HLS. `ChannelChange` serializa
+operações, revalida a conta e audita sem reentrada de senha, preservando CSRF.
+Origem e ferramentas não entram em logs/argv; HLS passa por relay loopback privado.
+Detalhes e limites em [cadastro manual](modules/20-manual-channels.md).

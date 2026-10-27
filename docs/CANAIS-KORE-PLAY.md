@@ -1,5 +1,11 @@
 # Liberar e buscar canais por parceiro
 
+Para cadastrar diretamente uma saída Flussonic/Kore Play pelo link, use agora
+**Canais → Adicionar canal** no Edge. MPEG-TS, HLS, UDP e SRT têm detecção
+e teste curto, sem importar catálogo nem repetir a senha administrativa.
+[Passo a passo do cadastro manual](modules/20-manual-channels.md).
+O procedimento abaixo continua sendo a alternativa de catálogo automático.
+
 ## 1. No Kore Play: escolher quem recebe
 
 1. Confirme que o Edge já está cadastrado e conectado em **Canais → WireGuard Kore Edge**.

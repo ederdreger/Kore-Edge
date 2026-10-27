@@ -16,7 +16,7 @@ até confirmação no painel.
 - `internal/live`: recepção contínua por canal autorizado, supervisão limitada,
   buffers, métricas reais, prévia compartilhada e saídas UDP/HLS.
 - `internal/edgecatalog`: contrato de SRT e permissões explícitas de saídas.
-- `internal/api/live.go`: administração por sessão, CSRF, senha e revisão;
+- `internal/api/live.go`: administração por sessão, CSRF e revisão (sem repetir senha para canais);
   prévia/saídas sempre sob autorização corrente.
 - `web/src/channel-workspace.tsx`, `wireguard-workspace.tsx`,
   e estilos compartilhados nas saídas: interface, seleção, revisão e operação reais.

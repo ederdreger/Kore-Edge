@@ -76,7 +76,7 @@ func (c Configuration) validate() error {
 	seen := map[string]bool{}
 	dest := map[string]bool{}
 	for _, entry := range c.Channels {
-		if !safeID.MatchString(entry.ChannelID) || seen[entry.ChannelID] || (entry.Protocol != "http_ts" && entry.Protocol != "hls" && entry.Protocol != "srt") {
+		if !safeID.MatchString(entry.ChannelID) || seen[entry.ChannelID] || (entry.Protocol != "http_ts" && entry.Protocol != "hls" && entry.Protocol != "srt" && entry.Protocol != "udp") {
 			return ErrInvalid
 		}
 		seen[entry.ChannelID] = true
