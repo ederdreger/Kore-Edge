@@ -65,10 +65,11 @@ type Manager struct {
 	previewSlots chan struct{}
 }
 type Snapshot struct {
-	Configuration Configuration        `json:"configuration"`
-	Catalog       edgecatalog.Snapshot `json:"catalog"`
-	Streams       []Status             `json:"streams"`
-	MaxActive     int                  `json:"max_active"`
+	ManualRevision uint64               `json:"manual_revision"`
+	Configuration  Configuration        `json:"configuration"`
+	Catalog        edgecatalog.Snapshot `json:"catalog"`
+	Streams        []Status             `json:"streams"`
+	MaxActive      int                  `json:"max_active"`
 }
 
 func New(ctx context.Context, directory string, catalog Catalog) (*Manager, error) {
@@ -92,6 +93,13 @@ func New(ctx context.Context, directory string, catalog Catalog) (*Manager, erro
 				return nil, ErrUnavailable
 			}
 			return catalog.OpenHLS(ctx, config.ChannelID, tools.FFmpeg)
+		case "udp":
+			if receiver, ok := catalog.(interface {
+				OpenUDP(context.Context, string) (io.ReadCloser, error)
+			}); ok {
+				return receiver.OpenUDP(ctx, config.ChannelID)
+			}
+			return nil, ErrUnavailable
 		default:
 			return nil, ErrUnavailable
 		}
@@ -124,7 +132,49 @@ func (m *Manager) Snapshot() Snapshot {
 		}
 		streams = append(streams, status)
 	}
-	return Snapshot{Configuration: m.store.snapshot(), Catalog: m.catalog.Snapshot(), Streams: streams, MaxActive: 16}
+	view := Snapshot{Configuration: m.store.snapshot(), Catalog: m.catalog.Snapshot(), Streams: streams, MaxActive: 16}
+	if local, ok := m.catalog.(interface{ Revision() uint64 }); ok {
+		view.ManualRevision = local.Revision()
+	}
+	return view
+}
+
+func (m *Manager) IsActive(id string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if j := m.jobs[id]; j != nil {
+		select {
+		case <-j.done:
+		default:
+			return true
+		}
+	}
+	return false
+}
+
+func (m *Manager) Forget(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if j := m.jobs[id]; j != nil {
+		select {
+		case <-j.done:
+		default:
+			return ErrConflict
+		}
+	}
+	current := m.store.snapshot()
+	expected := current.Generation
+	next := current
+	next.Channels = []ChannelConfig{}
+	for _, c := range current.Channels {
+		if c.ChannelID != id {
+			next.Channels = append(next.Channels, c)
+		}
+	}
+	if len(next.Channels) == len(current.Channels) {
+		return nil
+	}
+	return m.store.replace(next, expected)
 }
 func (m *Manager) Save(config ChannelConfig, tools Tools, expected uint64) error {
 	if !m.catalog.Authorized(config.ChannelID, config.Protocol) {

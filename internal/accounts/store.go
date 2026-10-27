@@ -19,6 +19,7 @@ import (
 )
 
 var ErrRejected = errors.New("account request rejected")
+var ErrBusy = errors.New("channel operation in progress")
 var ErrStorage = errors.New("account storage unavailable")
 
 type Config struct {
@@ -62,6 +63,7 @@ type session struct {
 	Idle              time.Duration
 }
 type Store struct {
+	channelMu sync.Mutex
 	mu        sync.Mutex
 	directory string
 	db        database

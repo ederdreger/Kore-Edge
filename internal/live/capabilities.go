@@ -7,16 +7,21 @@ import (
 )
 
 type Capabilities struct {
-	Tools            Tools                 `json:"tools"`
-	Interfaces       []multicast.Interface `json:"interfaces"`
-	Platform         string                `json:"platform"`
-	SRTSuggestedPort int                   `json:"srt_suggested_port"`
+	Tools               Tools                 `json:"tools"`
+	Interfaces          []multicast.Interface `json:"interfaces"`
+	Platform            string                `json:"platform"`
+	SRTSuggestedPort    int                   `json:"srt_suggested_port"`
+	InterfacesAvailable bool                  `json:"interfaces_available"`
+	Warning             string                `json:"warning,omitempty"`
 }
 
 func (m *Manager) Capabilities() (Capabilities, error) {
 	all, e := m.interfaces()
-	if e != nil {
-		return Capabilities{}, ErrUnavailable
+	available := e == nil
+	warning := ""
+	if !available {
+		all = []multicast.Interface{}
+		warning = "Inventário de interfaces indisponível. Entradas HTTP, HLS e SRT continuam configuráveis; UDP exige inventário válido."
 	}
 	ffmpeg, _ := exec.LookPath("ffmpeg")
 	ffprobe, _ := exec.LookPath("ffprobe")
@@ -26,5 +31,5 @@ func (m *Manager) Capabilities() (Capabilities, error) {
 	if !trustedTool(ffprobe, "ffprobe") {
 		ffprobe = ""
 	}
-	return Capabilities{Tools: Tools{FFmpeg: ffmpeg, FFprobe: ffprobe}, Interfaces: all, Platform: runtime.GOOS, SRTSuggestedPort: 20000}, nil
+	return Capabilities{Tools: Tools{FFmpeg: ffmpeg, FFprobe: ffprobe}, Interfaces: all, InterfacesAvailable: available, Warning: warning, Platform: runtime.GOOS, SRTSuggestedPort: 20000}, nil
 }

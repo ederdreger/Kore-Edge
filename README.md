@@ -1,9 +1,24 @@
 # Kore Edge — Plano mestre de desenvolvimento
 
+## Cadastro de canais pelo link da matriz
+
+Em **Canais → Adicionar canal**, cole a saída do Flussonic ou de outra matriz:
+HTTP MPEG-TS (`/mpegts` ou `.ts`), HLS (`.m3u8`), UDP MPEG-TS ou SRT caller.
+O protocolo aparece ao digitar; **Verificar sinal** faz uma leitura curta e
+**Salvar canal** prepara a recepção sem conectar. Depois use **Iniciar recepção**
+para manter o fluxo aberto, compartilhado com o player e as saídas UDP/HLS.
+Links sem extensão podem ser identificados pelo teste. UDP exige interface e IP
+local confirmados; o stream ID Flussonic `#!::r=CANAL,m=request` é preservado.
+
+Cadastro, teste e operação dos canais usam a sessão administrativa já autenticada,
+com CSRF e auditoria, **sem solicitar novamente a senha**. Espectadores continuam
+somente leitura. Credenciais das origens ficam em armazenamento privado e não
+aparecem na listagem. Os canais do catálogo automático continuam sujeitos às
+permissões da matriz. Consulte o [passo a passo e limites](docs/modules/20-manual-channels.md).
+
 ## Recepção contínua, SRT e saídas reais
 
-**Canais**, **Multicast UDP** e **HTTP / HLS** agora consultam o mesmo catálogo do
-parceiro. Configure um canal, salve a preparação e só então confirme **Iniciar
+**Canais** concentra cadastro, origem, recepção e saídas UDP/HLS por canal. O menu duplicado **Saídas** foi removido; links antigos abrem **Canais**. Configure um canal, salve a preparação e só então confirme **Iniciar
 recepção**. O fluxo permanece aberto com o player fechado e é compartilhado com
 as saídas autorizadas. O painel informa tempo até o primeiro sinal, bitrate
 medido, continuidade TS, falhas e permissões; métricas ausentes não são simuladas.
@@ -311,3 +326,5 @@ O assistente sincroniza peers por código temporário e permite revisar/ativar o
 túnel real com auxiliar local restrito. Salvar dados continua apenas preparando
 a configuração. A cópia de dados públicos confirma sucesso ou orienta Ctrl+C.
 Veja [habilitação, pré-verificação, aplicação e rollback](docs/modules/17-wireguard-connection.md).
+
+A janela de configuração abre imediatamente, com carregamento e nova tentativa em caso de falha. Inventário de rede indisponível bloqueia UDP, sem impedir preparar entradas HTTP/HLS/SRT. Nenhuma permissão de rede do serviço foi ampliada.

@@ -90,8 +90,8 @@ func TestPartnerCatalogSessionAndAdministrativeBoundary(t *testing.T) {
 	if w := call("POST", "/api/v1/live/action", map[string]any{"action": "start", "channel_id": "unlisted", "confirmed": true, "current_password": password}, ""); w.Code != 403 {
 		t.Fatal("live missing CSRF", w.Code)
 	}
-	if w := call("POST", "/api/v1/live/action", map[string]any{"action": "start", "channel_id": "unlisted", "confirmed": true, "current_password": "wrong"}, csrf); w.Code != 403 {
-		t.Fatal("live password", w.Code)
+	if w := call("POST", "/api/v1/live/action", map[string]any{"action": "start", "channel_id": "unlisted", "confirmed": true, "current_password": "wrong"}, csrf); w.Code != 400 {
+		t.Fatal("channel session should authorize without checking a second password", w.Code)
 	}
 	if w := call("POST", "/api/v1/live/action", map[string]any{"action": "start", "channel_id": "unlisted", "confirmed": true, "current_password": password}, csrf); w.Code != 400 {
 		t.Fatal("unlisted start", w.Code)
