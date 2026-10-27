@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -128,6 +129,20 @@ func TestNativeHLSRemuxUsesPrivateAuthenticatedReferences(t *testing.T) {
 		t.Fatal("synthetic generation", e)
 	}
 	s := fixture(t)
+	var diagnostic bytes.Buffer
+	s.command = func(ctx context.Context, tool string, args ...string) *exec.Cmd {
+		for i, a := range args {
+			if a == "quiet" {
+				args[i] = "error"
+			}
+			if strings.Contains(a, "synthetic-password") || strings.Contains(a, "media.example") {
+				t.Error("origin credential or address reached process arguments")
+			}
+		}
+		cmd := exec.CommandContext(ctx, tool, args...)
+		cmd.Stderr = &diagnostic
+		return cmd
+	}
 	var requests atomic.Int32
 	s.client = &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
 		requests.Add(1)
@@ -161,7 +176,10 @@ func TestNativeHLSRemuxUsesPrivateAuthenticatedReferences(t *testing.T) {
 	defer reader.Close()
 	data := make([]byte, 1316)
 	if _, e = io.ReadFull(reader, data); e != nil || !transport(data) {
-		t.Fatal("HLS remux failed", e)
+		reader.Close()
+		safe := strings.ReplaceAll(diagnostic.String(), "synthetic-password", "[credential]")
+		safe = regexp.MustCompile(`https?://[^\s'"\]]+`).ReplaceAllString(safe, "[private-relay]")
+		t.Fatal("HLS remux failed", e, safe)
 	}
 	if requests.Load() < 3 {
 		t.Fatal("variant/segment not fetched")

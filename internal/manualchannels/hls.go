@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -221,9 +220,11 @@ func (s *Service) openHLS(parent context.Context, c Source, ffmpeg string) (io.R
 		_, _ = io.Copy(w, io.LimitReader(response.Body, 32*1024*1024))
 	})
 	go func() { _ = server.Serve(listener) }()
-	cmd := exec.CommandContext(ctx, ffmpeg, "-hide_banner", "-loglevel", "quiet", "-nostdin", "-protocol_whitelist", "pipe,http,tcp,crypto", "-format_whitelist", "hls,mpegts,aac,mov", "-allowed_extensions", "ALL", "-analyzeduration", "1000000", "-probesize", "1000000", "-re", "-f", "hls", "-i", "pipe:0", "-map", "0:v:0?", "-map", "0:a:0?", "-c", "copy", "-mpegts_flags", "+resend_headers", "-flush_packets", "1", "-f", "mpegts", "pipe:1")
+	cmd := s.command(ctx, ffmpeg, "-hide_banner", "-loglevel", "quiet", "-nostdin", "-protocol_whitelist", "pipe,http,tcp,crypto", "-format_whitelist", "hls,mpegts,aac,mov", "-allowed_extensions", "ALL", "-analyzeduration", "1000000", "-probesize", "1000000", "-re", "-f", "hls", "-i", "pipe:0", "-map", "0:v:0?", "-map", "0:a:0?", "-c", "copy", "-mpegts_flags", "+resend_headers", "-flush_packets", "1", "-f", "mpegts", "pipe:1")
 	cmd.Stdin = strings.NewReader("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n" + refs.base + "index.m3u8\n")
-	cmd.Stderr = io.Discard
+	if cmd.Stderr == nil {
+		cmd.Stderr = io.Discard
+	}
 	cmd.WaitDelay = time.Second
 	output, e := cmd.StdoutPipe()
 	if e != nil {

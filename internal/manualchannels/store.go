@@ -1,6 +1,7 @@
 package manualchannels
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"kore-edge/internal/multicast"
 	"kore-edge/internal/security"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sync"
@@ -40,7 +42,7 @@ func New(directory string, fallback Catalog) (*Service, error) {
 	if security.PrivateDirectory(directory, true) != nil {
 		return nil, ErrUnavailable
 	}
-	s := &Service{directory: directory, fallback: fallback, data: state{Version: 1, Sources: []Source{}}, interfaces: multicast.Interfaces, lookup: lookupDefault, slots: make(chan struct{}, 2), dialSRT: srt.Dial}
+	s := &Service{directory: directory, fallback: fallback, data: state{Version: 1, Sources: []Source{}}, interfaces: multicast.Interfaces, lookup: lookupDefault, slots: make(chan struct{}, 2), dialSRT: srt.Dial, command: exec.CommandContext}
 	s.client = s.httpClient()
 	file := filepath.Join(directory, "channels.json")
 	if _, e := os.Lstat(file); !os.IsNotExist(e) {

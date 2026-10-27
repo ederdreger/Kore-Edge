@@ -8,6 +8,7 @@ import (
 	"kore-edge/internal/multicast"
 	"net"
 	"net/http"
+	"os/exec"
 )
 
 type Catalog interface {
@@ -28,6 +29,7 @@ type Service struct {
 	interfaces func() ([]multicast.Interface, error)
 	slots      chan struct{}
 	dialSRT    func(string, string, srt.Config) (srt.Conn, error)
+	command    func(context.Context, string, ...string) *exec.Cmd
 }
 
 func (s *Service) Close() { s.client.CloseIdleConnections() }
