@@ -26,21 +26,22 @@ type Output interface {
 	Close() error
 }
 type Status struct {
-	ChannelID      string    `json:"channel_id"`
-	Protocol       string    `json:"protocol"`
-	State          string    `json:"state"`
-	Error          string    `json:"error,omitempty"`
-	StartedAt      time.Time `json:"started_at"`
-	FirstPacketAt  time.Time `json:"first_packet_at"`
-	StartupMS      *int64    `json:"startup_ms"`
-	Interruptions  uint64    `json:"interruptions"`
-	LastFailureAt  time.Time `json:"last_failure_at"`
-	NextRetryAt    time.Time `json:"next_retry_at"`
-	LastRecoveryAt time.Time `json:"last_recovery_at"`
-	Attempts       int       `json:"attempts"`
-	Metrics        Metrics   `json:"metrics"`
-	UDP            string    `json:"udp_state"`
-	HLS            string    `json:"hls_state"`
+	ChannelID         string    `json:"channel_id"`
+	Protocol          string    `json:"protocol"`
+	State             string    `json:"state"`
+	Error             string    `json:"error,omitempty"`
+	StartedAt         time.Time `json:"started_at"`
+	FirstPacketAt     time.Time `json:"first_packet_at"`
+	StartupMS         *int64    `json:"startup_ms"`
+	Interruptions     uint64    `json:"interruptions"`
+	LastFailureReason string    `json:"last_failure_reason,omitempty"`
+	LastFailureAt     time.Time `json:"last_failure_at"`
+	NextRetryAt       time.Time `json:"next_retry_at"`
+	LastRecoveryAt    time.Time `json:"last_recovery_at"`
+	Attempts          int       `json:"attempts"`
+	Metrics           Metrics   `json:"metrics"`
+	UDP               string    `json:"udp_state"`
+	HLS               string    `json:"hls_state"`
 }
 type job struct {
 	mu          sync.Mutex
@@ -59,22 +60,25 @@ type job struct {
 	hlsWG       sync.WaitGroup
 }
 type Manager struct {
-	mu           sync.Mutex
-	ctx          context.Context
-	cancel       context.CancelFunc
-	store        *configStore
-	catalog      Catalog
-	jobs         map[string]*job
-	open         SourceOpener
-	interfaces   func() ([]multicast.Interface, error)
-	udpOpen      func(context.Context, multicast.Target, []multicast.Interface) (*multicast.Sender, error)
-	retryDelay   func(int) time.Duration
-	autoWG       sync.WaitGroup
-	autoOnce     sync.Once
-	closed       bool
-	maxActive    int
-	ingestSlots  chan struct{}
-	previewSlots chan struct{}
+	mu              sync.Mutex
+	ctx             context.Context
+	cancel          context.CancelFunc
+	store           *configStore
+	catalog         Catalog
+	jobs            map[string]*job
+	open            SourceOpener
+	interfaces      func() ([]multicast.Interface, error)
+	udpOpen         func(context.Context, multicast.Target, []multicast.Interface) (*multicast.Sender, error)
+	retryDelay      func(int) time.Duration
+	autoWG          sync.WaitGroup
+	autoOnce        sync.Once
+	closed          bool
+	failureMu       sync.Mutex
+	failureCounts   map[string]int
+	failureLoggedAt time.Time
+	maxActive       int
+	ingestSlots     chan struct{}
+	previewSlots    chan struct{}
 }
 type Snapshot struct {
 	ManualRevision uint64               `json:"manual_revision"`
@@ -431,7 +435,7 @@ func (m *Manager) run(j *job) {
 			j.setState("stopped", "")
 			return
 		}
-		if e == ErrDenied {
+		if errors.Is(e, ErrDenied) || errors.Is(e, edgecatalog.ErrDenied) {
 			j.setState("unauthorized", "source_grant_revoked")
 			return
 		}
@@ -446,6 +450,7 @@ func (m *Manager) run(j *job) {
 		j.mu.Lock()
 		if !queued {
 			j.status.Interruptions++
+			j.status.LastFailureReason = failureReason(e)
 			j.status.LastFailureAt = time.Now().UTC()
 		}
 		j.status.NextRetryAt = time.Now().UTC().Add(delay)
@@ -454,6 +459,7 @@ func (m *Manager) run(j *job) {
 			j.setState("waiting_hls_capacity", "media_resources_busy")
 		} else {
 			j.setState("backoff", "source_interrupted")
+			m.recordFailure(j.config.Protocol, failureReason(e))
 		}
 		timer := time.NewTimer(delay)
 		select {

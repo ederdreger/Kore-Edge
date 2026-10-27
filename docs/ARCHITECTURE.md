@@ -190,3 +190,8 @@ existência do endereço não significa que o segmentador está pronto.
 O registro desejado de cada canal e separado de sua vaga de recepcao. Um semaforo limita tentativas e fontes abertas; backoff e espera por processo HLS liberam a vaga. Assim uma origem com erro nao impede fontes saudaveis de iniciar. O encerramento cancela tambem os canais em espera e a parada manual continua persistida. O total de registros permanece limitado a 512.
 
 A capacidade e explicita no ambiente do servico, com padroes conservadores. Alteracoes exigem revisao operacional dos limites de CPU, memoria e tarefas. O perfil proposto em `deploy/systemd/kore-edge-capacity.conf.example` nao e aplicado pelo instalador nem pelo atualizador. As permissoes de saida do catalogo continuam obrigatorias.
+
+
+## Falhas de recepcao e prazos entre servicos
+
+O prazo de resposta inicial do cliente da matriz e de 8 segundos, superior aos 5 segundos de abertura da origem no Kore Play. A conexao de midia nao possui prazo total. Falhas HTTP conservam somente o codigo e falhas de rede conservam somente a categoria de timeout. Cada ativacao guarda o ultimo motivo de falha no status, mesmo apos recuperar; o monitor diferencia ausencia de pacotes de erros de abertura, leitura e saida. Logs agregados por protocolo/motivo nao incluem identidade de canal, URL, mensagem remota ou credenciais. Uma atualizacao exige acompanhar esses motivos antes de atribuir toda queda a uma causa unica.

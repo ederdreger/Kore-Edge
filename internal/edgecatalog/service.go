@@ -25,6 +25,14 @@ import (
 	"time"
 )
 
+// RemoteStatusError exposes only an HTTP status, never a URL or response body.
+type RemoteStatusError struct{ Code int }
+
+func (e *RemoteStatusError) Error() string { return "matrix_http_error" }
+func (e *RemoteStatusError) Unwrap() error { return ErrUnavailable }
+
+var ErrResponseTimeout = errors.New("matrix_response_timeout")
+
 var ErrUnavailable = errors.New("catalog_unavailable")
 var ErrInvalid = errors.New("invalid_catalog_configuration")
 var ErrConflict = errors.New("catalog_configuration_changed")
@@ -146,8 +154,8 @@ func secureClient(c Config, settings *wireguard.PeerSettings) *http.Client {
 		port = "443"
 	}
 	local, _ := netip.ParsePrefix(settings.Address)
-	transport := &http.Transport{Proxy: nil, TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}, TLSHandshakeTimeout: 2 * time.Second, ResponseHeaderTimeout: 3 * time.Second, MaxIdleConns: 16, MaxIdleConnsPerHost: 8, IdleConnTimeout: 30 * time.Second, DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
-		return (&net.Dialer{Timeout: time.Second, LocalAddr: &net.TCPAddr{IP: net.ParseIP(local.Addr().String())}}).DialContext(ctx, network, net.JoinHostPort(c.TunnelIP, port))
+	transport := &http.Transport{Proxy: nil, TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}, TLSHandshakeTimeout: 3 * time.Second, ResponseHeaderTimeout: 8 * time.Second, MaxIdleConns: 16, MaxIdleConnsPerHost: 8, IdleConnTimeout: 30 * time.Second, DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{Timeout: 2 * time.Second, LocalAddr: &net.TCPAddr{IP: net.ParseIP(local.Addr().String())}}).DialContext(ctx, network, net.JoinHostPort(c.TunnelIP, port))
 	}}
 	return &http.Client{Transport: transport, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return ErrDenied }}
 }
@@ -244,6 +252,10 @@ func (s *Service) remote(ctx context.Context, path string, ranges ...string) (*h
 	response, e := client.Do(request)
 	if e != nil {
 		client.CloseIdleConnections()
+		var networkError net.Error
+		if errors.As(e, &networkError) && networkError.Timeout() {
+			return nil, "", errors.Join(ErrUnavailable, ErrResponseTimeout)
+		}
 		return nil, "", ErrUnavailable
 	}
 	// Each request owns its transport. Closing response releases the socket; no
@@ -254,7 +266,7 @@ func (s *Service) remote(ctx context.Context, path string, ranges ...string) (*h
 		if response.StatusCode == 401 || response.StatusCode == 403 {
 			return nil, "", ErrDenied
 		}
-		return nil, "", ErrUnavailable
+		return nil, "", &RemoteStatusError{Code: response.StatusCode}
 	}
 	return response, headers.Get("X-Kore-Edge-Nonce"), nil
 }
