@@ -351,8 +351,8 @@ Em **Canais**, escolha **Lista** (zebra, busca e filtros) ou **Mini cards**.
 Os botões de teste de sinal e o atalho duplicado de recepção/saídas foram
 removidos dessa tela. Use a engrenagem para configurar e a aba **Saídas** para
 consultar links TS/HLS ou informar o destino multicast UDP. **Lista TS/HLS**
-exporta M3U com os caminhos locais: exige sessão autenticada, não é uma playlist
-pública nem inclui senha/token. HLS depende do grant da matriz e dos codecs.
+exporta M3U para players externos, com chaves limitadas aos canais e validade de
+sete dias. Gerar/revogar exige sessão administrativa; reproduzir não exige cookie. HLS depende do grant da matriz e dos codecs.
 
 O mini player da recepção compartilhada não tem limite de cinco minutos e
 reconecta automaticamente em falhas transitórias, com espera máxima de 30 segundos.
@@ -375,3 +375,20 @@ o painel ao iniciar muitos canais no serviço instalado com TasksMax=64/256 MiB.
 
 O atualizador observa o mesmo PID e a prontidão por 30 segundos antes de concluir.
 O rollback inclui `live/distribution.json`, além de YAML, gateway e release.
+
+## Saídas para VLC
+
+Em **Canais → selecione o canal → Saídas**, clique em **Gerar links para VLC**.
+Use **Copiar link TS** e, no VLC, **Mídia → Abrir fluxo de rede (Ctrl+N)**.
+O link HLS só é fornecido quando configurado/autorizado; aguarde a saída ficar
+pronta. **Lista TS/HLS** exporta as saídas prontas da busca com o mesmo acesso.
+
+Links antigos `/api/v1/live/media/...` e `/api/v1/live/hls/...` são internos do
+painel e exigem cookie. Os links externos `/api/v1/playback/...` usam uma chave
+de reprodução com validade de sete dias. **Revogar links deste canal** invalida
+os links anteriores e encerra reproduções externas, sem parar o ingest.
+Não inclui senha administrativa ou URL da matriz. A chave não permite administrar
+o Edge. Troca de senha, bloqueio do administrador emissor e revogação de grants
+também bloqueiam esses acessos. O VLC precisa confiar no certificado HTTPS do
+Edge; não se desativa a verificação TLS nem se abre HTTP público.
+Veja [acesso externo de mídia](docs/modules/21-playback-links.md).

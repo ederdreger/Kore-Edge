@@ -148,3 +148,25 @@ func (m *Manager) ServeHLS(w http.ResponseWriter, r *http.Request, id, tail stri
 	copy.URL.Path = "/hls/" + id + "/" + strings.TrimPrefix(tail, "/")
 	segmenter.ServeHTTP(w, copy)
 }
+
+// PlaybackAllowed rechecks the current source and output grant on every request.
+func (m *Manager) PlaybackAllowed(id string, hls bool) bool {
+	for _, c := range m.store.snapshot().Channels {
+		if c.ChannelID == id {
+			return m.catalog.Authorized(id, c.Protocol) && (!hls || c.HLS && m.catalog.OutputAuthorized(id, "hls"))
+		}
+	}
+	return false
+}
+
+func (m *Manager) PlaybackReady(id string) bool {
+	m.mu.Lock()
+	j := m.jobs[id]
+	m.mu.Unlock()
+	if j == nil {
+		return false
+	}
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.status.State == "running" && j.hub != nil && time.Since(j.hub.Snapshot().LastPacket) < 3*time.Second
+}

@@ -166,3 +166,16 @@ Não estende grants. Quedas são recuperadas com backoff cancelável de até 30 
 compartilhadas. Falta de capacidade é fila, não falha da origem. A reserva dura
 até o término do processo ou fechamento da saída; cancelamentos liberam vagas.
 O runtime padrão é limitado no binário sem mudar unidades systemd.
+
+## Player externo sem cookie
+
+`internal/playback` assina capacidades HMAC-SHA256 por canal, owner/revisão,
+geração de revogação e prazo de sete dias. O segredo e as gerações ficam
+privados em `users/playback/playback.json`; URLs completas não são persistidas.
+Emissão/revogação usam sessão administrativa, CSRF e auditoria sem senha repetida.
+A rota `/api/v1/playback/` aceita apenas GET/HEAD pelo gateway loopback, sem criar
+sessão de administração. Verifica capability, administrador emissor ainda válido
+e grants atuais. TS revalida a cada segundo; HLS valida playlist e cada segmento.
+Os caminhos relativos dos segmentos conservam a capability no diretório da URL.
+Há no máximo dois consumidores simultâneos por link e 32 globais. O fluxo vem
+do mesmo `live.Manager`, sem abrir outra origem nem transcodificar.

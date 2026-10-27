@@ -22,7 +22,7 @@ func (s *Store) ChannelChange(actor User, action string, change func() error) (r
 	}
 	defer s.channelMu.Unlock()
 	s.mu.Lock()
-	if s.closed || actor.Role != "admin" || (action != "manual_channel_save" && action != "manual_channel_delete" && action != "manual_channel_probe" && action != "live_config" && action != "live_start" && action != "live_stop") {
+	if s.closed || actor.Role != "admin" || (action != "manual_channel_save" && action != "manual_channel_delete" && action != "manual_channel_probe" && action != "live_config" && action != "live_start" && action != "live_stop" && action != "playback_issue" && action != "playback_revoke") {
 		s.mu.Unlock()
 		return ErrRejected
 	}
@@ -107,4 +107,19 @@ func (s *Store) WireGuardChange(actor User, password, action string, change func
 		status = 200
 	}
 	return result
+}
+
+// PlaybackOwner validates a capability owner without granting a panel session.
+func (s *Store) PlaybackOwner(id string, revision uint64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return false
+	}
+	for _, u := range s.db.Users {
+		if u.ID == id && u.Revision == revision && !u.Disabled && u.Role == "admin" {
+			return true
+		}
+	}
+	return false
 }
