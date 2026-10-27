@@ -66,3 +66,9 @@ it('shows one stop control per row and allows configuring an active channel',asy
  await waitFor(()=>expect(request.mock.calls.find(c=>c[0]==='POST')?.[2]).toMatchObject({action:'stop',channel_id:'synthetic',confirmed:true}));
  expect(screen.queryByRole('dialog')).toBeNull();
 });
+
+it('never opens an on-demand preview for a stopped partner channel',async()=>{
+ const request=mount();fireEvent.click(await screen.findByRole('button',{name:'Reproduzir Canal sint\u00e9tico'}));
+ await screen.findByText('Inicie a recep\u00e7\u00e3o cont\u00ednua deste canal antes de abrir o player.');
+ expect(request.mock.calls.every(c=>c[0]==='GET')).toBe(true);expect(screen.queryByText(/sob demanda/)).toBeNull();
+});
