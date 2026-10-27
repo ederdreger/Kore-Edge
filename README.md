@@ -403,3 +403,8 @@ por um endereço permanente. Veja [contrato e migração](docs/modules/21-playba
 Canais em reconexão liberam a vaga de recepção durante o backoff; falhas de origem não bloqueiam os demais canais. Todos os canais autorizados desejados entram no agendamento (até 512 cadastros), sem depender do player aberto. Paradas manuais continuam persistentes. O limite de recepções e o limite de processos HLS são distintos no painel.
 
 Os valores padrão conservadores continuam 16 recepções, 2 entradas HLS e 2 saídas HLS. `KORE_EDGE_MAX_CHANNELS` (1..512), `KORE_EDGE_HLS_INPUTS` (1..512) e `KORE_EDGE_HLS_OUTPUTS` (1..128) permitem dimensionamento explícito; valores inválidos impedem a inicialização. Não aumentar sem revisar memória, tarefas e banda. Veja [perfil proposto e procedimento de revisão](docs/CAPACIDADE-CANAIS.md).
+
+
+### Diagnostico de quedas de recepcao
+
+A aba Qualidade mostra o motivo seguro da ultima falha: prazo da matriz, falta de pacotes, abertura/leitura, encerramento remoto, transporte invalido ou falha de saida. O core emite contagens agregadas por protocolo/motivo, limitadas a uma publicacao a cada 30 segundos, sem nomes de canais, URLs ou credenciais. A espera por headers da matriz e de 8 segundos: a matriz permite ate 5 segundos para abrir uma origem, portanto o limite anterior de 3 segundos podia cancelar uma abertura ainda valida. Nao existe prazo total para encerrar uma recepcao saudavel; cancelamento e monitor de ausencia de pacotes continuam ativos.

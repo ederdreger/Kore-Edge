@@ -3,6 +3,7 @@ package live
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"kore-edge/internal/hls"
 	"kore-edge/internal/mediaresources"
@@ -11,9 +12,10 @@ import (
 	"time"
 )
 
-func (m *Manager) attempt(j *job) error {
+func (m *Manager) attempt(j *job) (attemptError error) {
 	ctx, cancel := context.WithCancel(j.ctx)
 	var denied atomic.Bool
+	var idle atomic.Bool
 	monitorDone := make(chan struct{})
 	attemptStart := time.Now().UTC()
 	go func() {
@@ -41,6 +43,7 @@ func (m *Manager) attempt(j *job) error {
 					timeout = 20 * time.Second
 				}
 				if time.Since(last) > timeout {
+					idle.Store(true)
 					cancel()
 					return
 				}
@@ -56,10 +59,20 @@ func (m *Manager) attempt(j *job) error {
 			}
 		}
 	}()
-	defer func() { cancel(); <-monitorDone; j.hlsWG.Wait(); j.closeOutputs() }()
+	defer func() {
+		cancel()
+		<-monitorDone
+		j.hlsWG.Wait()
+		j.closeOutputs()
+		if denied.Load() {
+			attemptError = ErrDenied
+		} else if idle.Load() {
+			attemptError = errSourceIdle
+		}
+	}()
 	input, e := m.open(ctx, j.config, j.tools)
 	if e != nil {
-		return e
+		return errors.Join(errSourceOpen, e)
 	}
 	defer input.Close()
 	closeDone := make(chan struct{})
@@ -149,7 +162,7 @@ func (m *Manager) attempt(j *job) error {
 					j.status.UDP = "failed"
 				}
 				j.mu.Unlock()
-				return ErrUnavailable
+				return errUDPOutput
 			} else {
 				j.mu.Lock()
 				j.status.UDP = "sending"
@@ -165,7 +178,7 @@ func (m *Manager) attempt(j *job) error {
 					j.status.HLS = "failed_or_revoked"
 				}
 				j.mu.Unlock()
-				return ErrUnavailable
+				return errHLSOutput
 			}
 		}
 		if retryHLS && !hlsPending && time.Since(lastHLSAttempt) > 2*time.Second {
