@@ -183,3 +183,10 @@ nas métricas da origem. Pausa explícita, exclusão, grant indisponível, shutd
 cliente desconectado e limites de escrita encerram a resposta. Não abre origem
 extra. HLS valida cada playlist/segmento com o mesmo endereço permanente; a
 existência do endereço não significa que o segmentador está pronto.
+
+
+## Admissao de recepcao continua
+
+O registro desejado de cada canal e separado de sua vaga de recepcao. Um semaforo limita tentativas e fontes abertas; backoff e espera por processo HLS liberam a vaga. Assim uma origem com erro nao impede fontes saudaveis de iniciar. O encerramento cancela tambem os canais em espera e a parada manual continua persistida. O total de registros permanece limitado a 512.
+
+A capacidade e explicita no ambiente do servico, com padroes conservadores. Alteracoes exigem revisao operacional dos limites de CPU, memoria e tarefas. O perfil proposto em `deploy/systemd/kore-edge-capacity.conf.example` nao e aplicado pelo instalador nem pelo atualizador. As permissoes de saida do catalogo continuam obrigatorias.

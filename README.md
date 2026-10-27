@@ -396,3 +396,10 @@ seguindo o novo fluxo compartilhado. Pacotes nulos mantêm o transporte no inter
 sem contar como sinal/bitrate real. Parar manualmente encerra a saída. Falhas de
 rede, consumidor lento ou indisponibilidade da origem não podem ser eliminadas
 por um endereço permanente. Veja [contrato e migração](docs/modules/21-playback-links.md).
+
+
+### Capacidade da recepção contínua
+
+Canais em reconexão liberam a vaga de recepção durante o backoff; falhas de origem não bloqueiam os demais canais. Todos os canais autorizados desejados entram no agendamento (até 512 cadastros), sem depender do player aberto. Paradas manuais continuam persistentes. O limite de recepções e o limite de processos HLS são distintos no painel.
+
+Os valores padrão conservadores continuam 16 recepções, 2 entradas HLS e 2 saídas HLS. `KORE_EDGE_MAX_CHANNELS` (1..512), `KORE_EDGE_HLS_INPUTS` (1..512) e `KORE_EDGE_HLS_OUTPUTS` (1..128) permitem dimensionamento explícito; valores inválidos impedem a inicialização. Não aumentar sem revisar memória, tarefas e banda. Veja [perfil proposto e procedimento de revisão](docs/CAPACIDADE-CANAIS.md).

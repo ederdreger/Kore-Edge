@@ -10,6 +10,8 @@ import (
 )
 
 var ErrBusy = errors.New("media_resources_busy")
+var poolMu sync.Mutex
+
 var inputs = make(chan struct{}, 2)
 var outputs = make(chan struct{}, 2)
 
@@ -23,10 +25,28 @@ func acquire(pool chan struct{}) (func(), bool) {
 	}
 }
 
-func Input() (func(), bool) { return acquire(inputs) }
+func Input() (func(), bool) { poolMu.Lock(); defer poolMu.Unlock(); return acquire(inputs) }
 
 // Output reserves validation and the subsequent segmenter as one operation.
-func Output() (func(), bool) { return acquire(outputs) }
+func Output() (func(), bool) { poolMu.Lock(); defer poolMu.Unlock(); return acquire(outputs) }
+
+// ConfigureLimits is called at startup before media sources are opened.
+func ConfigureLimits(inputLimit, outputLimit int) error {
+	poolMu.Lock()
+	defer poolMu.Unlock()
+	if inputLimit < 1 || inputLimit > 512 || outputLimit < 1 || outputLimit > 128 {
+		return errors.New("invalid media capacity")
+	}
+	if cap(inputs) == inputLimit && cap(outputs) == outputLimit {
+		return nil
+	}
+	if len(inputs) != 0 || len(outputs) != 0 {
+		return ErrBusy
+	}
+	inputs = make(chan struct{}, inputLimit)
+	outputs = make(chan struct{}, outputLimit)
+	return nil
+}
 
 func Configure(cmd *exec.Cmd) {
 	cmd.Args = append([]string{cmd.Args[0], "-threads", "1"}, cmd.Args[1:]...)
