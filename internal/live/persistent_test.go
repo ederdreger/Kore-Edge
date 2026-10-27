@@ -114,3 +114,37 @@ func TestPersistentTSKeepsOneHTTPConnectionAcrossIngestRecovery(t *testing.T) {
 		t.Fatal("manual stop did not close persistent output")
 	}
 }
+
+func TestPersistentTSClosesOnAgentShutdownWithoutClearingResume(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := &syntheticCatalog{}
+	c.allowed.Store(true)
+	m, e := New(ctx, filepath.Join(t.TempDir(), "live"), c)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer m.Close()
+	if m.Save(ChannelConfig{ChannelID: "synthetic", Protocol: "http_ts", Resume: true}, Tools{}, 0) != nil || m.Start("synthetic") != nil {
+		t.Fatal("setup")
+	}
+	waitStatus(t, m, "running")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { m.ServePersistentTS(w, r, "synthetic") }))
+	defer server.Close()
+	client := server.Client()
+	client.Timeout = 3 * time.Second
+	response, e := client.Get(server.URL)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer response.Body.Close()
+	cancel()
+	start := time.Now()
+	_, _ = io.Copy(io.Discard, response.Body)
+	if time.Since(start) > time.Second {
+		t.Fatal("shutdown left an idle HTTP response alive")
+	}
+	if !m.Snapshot().Configuration.Channels[0].Resume {
+		t.Fatal("shutdown cleared desired reception")
+	}
+}

@@ -11,7 +11,7 @@ import (
 func (m *Manager) persistentJob(id string) (*job, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.closed {
+	if m.closed || m.ctx.Err() != nil {
 		return nil, false
 	}
 	for _, c := range m.store.snapshot().Channels {
