@@ -361,3 +361,17 @@ saídas. Codecs incompatíveis, sessão expirada e acesso revogado não são cor
 por reiniciar. Qualidade mostra interrupções, horário da falha e próxima tentativa.
 A recuperação evita depender de ação manual para quedas de transporte; não garante
 vídeo sem cortes quando a origem, o link ou o navegador estiverem indisponíveis.
+
+### Orçamento de processos de mídia
+
+O agente usa, por padrão, duas CPUs lógicas para o runtime Go, limite suave de
+heap de 128 MiB e resolvedor DNS Go. Configurações explícitas GOMAXPROCS e
+GOMEMLIMIT do operador são respeitadas. Sem alterar TasksMax/MemoryMax do host,
+a conversão de entradas HLS tem duas vagas compartilhadas e as saídas HLS têm
+duas vagas incluindo validação de codecs. Processos FFmpeg/ffprobe recebem limite
+de uma thread de codec e de bibliotecas numéricas. Os demais aguardam recursos;
+TS/SRT nativos continuam sujeitos ao limite de 16 recepções. Isso evita derrubar
+o painel ao iniciar muitos canais no serviço instalado com TasksMax=64/256 MiB.
+
+O atualizador observa o mesmo PID e a prontidão por 30 segundos antes de concluir.
+O rollback inclui `live/distribution.json`, além de YAML, gateway e release.

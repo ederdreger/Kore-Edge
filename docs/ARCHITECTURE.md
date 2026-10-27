@@ -161,3 +161,8 @@ Detalhes e limites em [cadastro manual](modules/20-manual-channels.md).
 O reconciliador de recepção Kore Play executa no agente a cada cinco segundos,
 com fila, limite de 16 canais ativos e pausa manual persistida em `auto_paused`.
 Não estende grants. Quedas são recuperadas com backoff cancelável de até 30 segundos.
+
+`internal/mediaresources` reserva duas entradas HLS e duas saídas/validações
+compartilhadas. Falta de capacidade é fila, não falha da origem. A reserva dura
+até o término do processo ou fechamento da saída; cancelamentos liberam vagas.
+O runtime padrão é limitado no binário sem mudar unidades systemd.

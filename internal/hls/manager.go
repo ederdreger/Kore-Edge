@@ -3,6 +3,7 @@ package hls
 import (
 	"bufio"
 	"context"
+	"kore-edge/internal/mediaresources"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -98,6 +99,7 @@ func (m *Manager) Open(ctx context.Context, id string) (*Session, error) {
 	child, cancel := context.WithCancel(ctx)
 	s := &Session{owner: m, id: id, dir: dir, ctx: child, cancel: cancel, queue: make(chan [188]byte, 128), done: make(chan struct{})}
 	cmd := exec.CommandContext(child, m.config.FFmpeg, segmentArgs()...)
+	mediaresources.Configure(cmd)
 	cmd.Dir = dir
 	cmd.WaitDelay = time.Second
 	input, e := cmd.StdinPipe()

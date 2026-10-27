@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"io"
+	"kore-edge/internal/mediaresources"
 	"net"
 	"net/http"
 	"os/exec"
@@ -75,6 +76,17 @@ func privatePlaylist(data []byte, id, base string) ([]byte, error) {
 // loopback relay and a playlist on stdin: neither origin secrets nor the local
 // capability are placed in process arguments, DTOs or logs.
 func (s *Service) OpenHLS(parent context.Context, id, ffmpeg string) (io.ReadCloser, error) {
+	release, ok := mediaresources.Input()
+	if !ok {
+		return nil, mediaresources.ErrBusy
+	}
+	started := false
+	defer func() {
+		if !started {
+			release()
+		}
+	}()
+
 	if !s.allowed(id, "hls") {
 		return nil, ErrDenied
 	}
@@ -153,6 +165,7 @@ func (s *Service) OpenHLS(parent context.Context, id, ffmpeg string) (io.ReadClo
 		return nil, e
 	}
 	cmd := exec.CommandContext(ctx, ffmpeg, "-hide_banner", "-loglevel", "quiet", "-nostdin", "-protocol_whitelist", "pipe,http,tcp,crypto", "-format_whitelist", "hls,mpegts,aac,mov", "-allowed_extensions", "ALL", "-analyzeduration", "1500000", "-probesize", "2000000", "-re", "-f", "hls", "-i", "pipe:0", "-map", "0:v:0?", "-map", "0:a:0?", "-c", "copy", "-mpegts_flags", "+resend_headers", "-flush_packets", "1", "-f", "mpegts", "pipe:1")
+	mediaresources.Configure(cmd)
 	cmd.Stdin = strings.NewReader("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n" + base + "index.m3u8\n")
 	cmd.WaitDelay = time.Second
 	output, e := cmd.StdoutPipe()
@@ -166,6 +179,7 @@ func (s *Service) OpenHLS(parent context.Context, id, ffmpeg string) (io.ReadClo
 		return nil, ErrUnavailable
 	}
 	process := &processInput{output: output, cancel: cancel, server: server, done: make(chan struct{})}
-	go func() { _ = cmd.Wait(); close(process.done) }()
+	started = true
+	go func() { _ = cmd.Wait(); release(); close(process.done) }()
 	return process, nil
 }

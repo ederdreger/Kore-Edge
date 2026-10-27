@@ -209,3 +209,17 @@ check_panel_assets() {
   GATEWAY_CHECK_ERROR='JavaScript do login recusado ou com tipo MIME incorreto'
   return 1
 }
+# A single successful readiness response is insufficient while ingests start.
+# Require one unchanged core process and both units throughout the observation.
+check_panel_stability(){
+ local backend=$1 pid current attempt
+ pid=$(systemctl show kore-edge.service -p MainPID --value) || return 1
+ [[ $pid =~ ^[1-9][0-9]*$ ]] || return 1
+ for attempt in {1..30}; do
+  systemctl is-active --quiet kore-edge.service kore-edge-gateway.service || return 1
+  current=$(systemctl show kore-edge.service -p MainPID --value) || return 1
+  [[ $current == "$pid" ]] || return 1
+  curl --noproxy '*' --globoff --silent --fail --max-time 2 "http://$backend/readyz" >/dev/null || return 1
+  sleep 1
+ done
+}

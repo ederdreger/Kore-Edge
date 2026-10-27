@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"kore-edge/internal/hls"
+	"kore-edge/internal/mediaresources"
 	"path/filepath"
 	"sync/atomic"
 	"time"
@@ -109,6 +110,8 @@ func (m *Manager) attempt(j *job) error {
 	reader := io.MultiReader(bytes.NewReader(initial[offset:]), input)
 	sample := make([]byte, 0, 2*1024*1024)
 	hlsPending := j.config.HLS
+	sampleStart := attemptStart
+	lastHLSAttempt := attemptStart
 	packet := make([]byte, 188)
 	for {
 		if _, e = io.ReadFull(reader, packet); e != nil {
@@ -123,6 +126,7 @@ func (m *Manager) attempt(j *job) error {
 		j.mu.Lock()
 		hub := j.hub
 		udp, segmenter := j.udp, j.hlsOutput
+		retryHLS := j.config.HLS && j.hlsOutput == nil && !j.hlsStarting && j.status.HLS == "waiting_resources"
 		if j.status.FirstPacketAt.IsZero() {
 			now := time.Now().UTC()
 			elapsed := now.Sub(attemptStart).Milliseconds()
@@ -164,12 +168,18 @@ func (m *Manager) attempt(j *job) error {
 				return ErrUnavailable
 			}
 		}
+		if retryHLS && !hlsPending && time.Since(lastHLSAttempt) > 2*time.Second {
+			hlsPending = true
+			sample = nil
+			sampleStart = time.Now()
+		}
 		if hlsPending {
 			if len(sample) < 2*1024*1024 {
 				sample = append(sample, packet...)
 			}
-			if len(sample) >= 1024*1024 || time.Since(attemptStart) > 3*time.Second {
+			if len(sample) >= 1024*1024 || time.Since(sampleStart) > 3*time.Second {
 				hlsPending = false
+				lastHLSAttempt = time.Now()
 				m.prepareHLS(ctx, j, sample)
 				sample = nil
 			}
@@ -179,6 +189,8 @@ func (m *Manager) attempt(j *job) error {
 func (j *job) closeOutputs() {
 	j.mu.Lock()
 	udp, segmenter, manager := j.udp, j.hlsOutput, j.hlsManager
+	release := j.hlsRelease
+	j.hlsRelease = nil
 	j.udp = nil
 	j.hlsOutput = nil
 	j.hlsManager = nil
@@ -186,7 +198,7 @@ func (j *job) closeOutputs() {
 	if j.status.UDP == "sending" || j.status.UDP == "ready" {
 		j.status.UDP = "stopped"
 	}
-	if j.status.HLS == "running" || j.status.HLS == "validating_codecs" {
+	if j.status.HLS == "running" || j.status.HLS == "validating_codecs" || j.status.HLS == "waiting_resources" {
 		j.status.HLS = "stopped"
 	}
 	j.mu.Unlock()
@@ -199,8 +211,18 @@ func (j *job) closeOutputs() {
 	if manager != nil {
 		manager.Close()
 	}
+	if release != nil {
+		release()
+	}
 }
 func (m *Manager) prepareHLS(ctx context.Context, j *job, sample []byte) {
+	release, ok := mediaresources.Output()
+	if !ok {
+		j.mu.Lock()
+		j.status.HLS = "waiting_resources"
+		j.mu.Unlock()
+		return
+	}
 	j.mu.Lock()
 	j.status.HLS = "validating_codecs"
 	j.hlsStarting = true
@@ -208,6 +230,15 @@ func (m *Manager) prepareHLS(ctx context.Context, j *job, sample []byte) {
 	j.hlsWG.Add(1)
 	go func() {
 		defer j.hlsWG.Done()
+		retained := false
+		defer func() {
+			j.mu.Lock()
+			j.hlsStarting = false
+			j.mu.Unlock()
+			if !retained {
+				release()
+			}
+		}()
 		if !m.catalog.OutputAuthorized(j.config.ChannelID, "hls") {
 			j.mu.Lock()
 			j.status.HLS = "unauthorized"
@@ -242,6 +273,8 @@ func (m *Manager) prepareHLS(ctx context.Context, j *job, sample []byte) {
 			return
 		}
 		j.mu.Lock()
+		j.hlsRelease = release
+		retained = true
 		j.hlsManager = manager
 		j.hlsOutput = segmenter
 		j.status.HLS = "running"

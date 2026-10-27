@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"io"
+	"kore-edge/internal/mediaresources"
 	"net"
 	"net/http"
 	"net/url"
@@ -152,6 +153,17 @@ func executable(raw string) bool {
 	return e == nil && info.Mode().IsRegular() && (os.PathSeparator == '\\' || info.Mode().Perm()&0022 == 0)
 }
 func (s *Service) openHLS(parent context.Context, c Source, ffmpeg string) (io.ReadCloser, error) {
+	release, ok := mediaresources.Input()
+	if !ok {
+		return nil, mediaresources.ErrBusy
+	}
+	started := false
+	defer func() {
+		if !started {
+			release()
+		}
+	}()
+
 	if !executable(ffmpeg) {
 		return nil, ErrUnavailable
 	}
@@ -259,6 +271,7 @@ func (s *Service) openHLS(parent context.Context, c Source, ffmpeg string) (io.R
 		initial = string(rewritten)
 	}
 	cmd := s.command(ctx, ffmpeg, "-hide_banner", "-loglevel", "quiet", "-nostdin", "-protocol_whitelist", "pipe,http,tcp,crypto", "-format_whitelist", "hls,mpegts,aac,mov", "-allowed_extensions", "ALL", "-analyzeduration", "1000000", "-probesize", "1000000", "-re", "-f", "hls", "-i", "pipe:0", "-map", "0:v:0?", "-map", "0:a:0?", "-c", "copy", "-mpegts_flags", "+resend_headers", "-flush_packets", "1", "-f", "mpegts", "pipe:1")
+	mediaresources.Configure(cmd)
 	cmd.Stdin = strings.NewReader(initial)
 	if cmd.Stderr == nil {
 		cmd.Stderr = io.Discard
@@ -277,6 +290,7 @@ func (s *Service) openHLS(parent context.Context, c Source, ffmpeg string) (io.R
 		return nil, ErrUnavailable
 	}
 	p := &processInput{output: output, cancel: cancel, server: server, done: make(chan struct{})}
-	go func() { _ = cmd.Wait(); close(p.done); cancel(); server.Close() }()
+	started = true
+	go func() { _ = cmd.Wait(); release(); close(p.done); cancel(); server.Close() }()
 	return p, nil
 }

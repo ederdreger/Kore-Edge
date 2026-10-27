@@ -4,8 +4,11 @@ import (
 	"context"
 	"flag"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/debug"
 	"syscall"
 
 	"kore-edge/internal/app"
@@ -15,6 +18,15 @@ import (
 )
 
 func main() {
+	// Keep the default runtime within the installer service's task/memory limits.
+	// Explicit operator runtime settings remain authoritative.
+	if os.Getenv("GOMAXPROCS") == "" && runtime.GOMAXPROCS(0) > 2 {
+		runtime.GOMAXPROCS(2)
+	}
+	if os.Getenv("GOMEMLIMIT") == "" {
+		debug.SetMemoryLimit(128 << 20)
+	}
+	net.DefaultResolver.PreferGo = true
 	path := flag.String("config", "", "required path to reviewed laboratory YAML configuration")
 	releases := flag.String("release-dir", "", "private selected release directory; exclusive with -config")
 	synthetic := flag.Bool("synthetic-ts", false, "emit paced synthetic MPEG-TS null packets to stdout (no network)")
