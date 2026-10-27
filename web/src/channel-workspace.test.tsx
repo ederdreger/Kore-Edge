@@ -8,7 +8,7 @@ const user={id:'a'.repeat(32),username:'owner',role:'admin' as const,revision:1,
 const channel={id:'synthetic',name:'Canal sintético',category:'Lab',protocols:[{id:'http_ts',label:'MPEG-TS'}],outputs:['udp','hls']};
 const snapshot={configuration:{generation:0,channels:[],tools:{ffmpeg:'',ffprobe:''}},catalog:{available:true,configured:true,catalog:{channels:[channel],partner_name:'Synthetic'}},streams:[],max_active:16};
 function mount(view:unknown=snapshot){
- const request=vi.fn(async(method:string,path:string,_body?:unknown)=>new Response(JSON.stringify(path.endsWith('manual-channels')?{revision:0,channels:[]}:path.endsWith('/capabilities')?{tools:{ffmpeg:'/usr/bin/ffmpeg',ffprobe:'/usr/bin/ffprobe'},interfaces:[{name:'synthetic0',up:true,multicast:true,ipv4:['10.77.0.2']}]}:view)));
+ const request=vi.fn(async(method:string,path:string,_body?:unknown)=>new Response(JSON.stringify(path.endsWith('manual-channels')?{revision:0,channels:[]}:path.endsWith('/capabilities')?{tools:{ffmpeg:'/usr/bin/ffmpeg',ffprobe:'/usr/bin/ffprobe'},interfaces:[{name:'synthetic0',up:true,multicast:true,ipv4:['10.77.0.2']}]}:path.endsWith('playback-links')?{links:[{channel_id:'synthetic',ts_path:'/api/v1/playback/SYNTHETIC/synthetic/stream.ts',hls_path:'/api/v1/playback/SYNTHETIC/synthetic/index.m3u8',expires_at:'2030-01-01T00:00:00Z'}]}:view)));
  render(<AccountContext.Provider value={{user,request,reload:vi.fn(),logout:vi.fn()}}><ChannelWorkspace/></AccountContext.Provider>);return request;
 }
 it('lists received channels in UDP output without invoking sources or the old read-only placeholder',async()=>{
@@ -80,9 +80,10 @@ it('switches between a filterable channel list and mini cards without media acti
  fireEvent.change(screen.getByRole('textbox',{name:'Buscar canal'}),{target:{value:'missing'}});expect(screen.queryByRole('button',{name:'Configurar'})).toBeNull();
  fireEvent.change(screen.getByRole('textbox',{name:'Buscar canal'}),{target:{value:''}});fireEvent.click(screen.getByRole('button',{name:'Lista'}));expect(screen.getByRole('table')).toBeTruthy();expect(request.mock.calls.every(c=>c[0]==='GET')).toBe(true);
 });
-it('offers authenticated TS and HLS URLs without creating a UDP destination',async()=>{
+it('generates VLC links explicitly without creating a UDP destination',async()=>{
  const request=mount();await screen.findByRole('button',{name:'Configurar Canal sint\u00e9tico'});fireEvent.click(screen.getByRole('button',{name:'Sa\u00eddas'}));
- expect((screen.getByLabelText('Link MPEG-TS (sess\u00e3o autenticada)') as HTMLInputElement).value).toContain('/live/media/synthetic/stream.ts');
- expect((screen.getByLabelText(/Link HLS/) as HTMLInputElement).value).toContain('/live/hls/synthetic/index.m3u8');
- expect(screen.getByRole('button',{name:'Configurar destino UDP'})).toBeTruthy();expect(request.mock.calls.every(c=>c[0]==='GET')).toBe(true);
+ expect(screen.queryByLabelText('Link MPEG-TS para VLC')).toBeNull();fireEvent.click(screen.getByRole('button',{name:'Gerar links para VLC'}));
+ expect((await screen.findByLabelText('Link MPEG-TS para VLC') as HTMLInputElement).value).toContain('/playback/SYNTHETIC/synthetic/stream.ts');
+ expect((screen.getByLabelText('Link HLS para VLC') as HTMLInputElement).value).toContain('/playback/SYNTHETIC/synthetic/index.m3u8');
+ expect(screen.getByRole('button',{name:'Configurar destino UDP'})).toBeTruthy();expect(request.mock.calls.filter(c=>c[0]==='POST')[0][1]).toBe('/api/v1/live/playback-links');
 });

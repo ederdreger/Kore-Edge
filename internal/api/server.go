@@ -13,6 +13,7 @@ import (
 	"kore-edge/internal/manualchannels"
 	"kore-edge/internal/monitoring"
 	"kore-edge/internal/multicast"
+	"kore-edge/internal/playback"
 	"kore-edge/internal/provision"
 	"kore-edge/internal/security"
 	"kore-edge/internal/stream"
@@ -25,6 +26,7 @@ import (
 )
 
 type API struct {
+	Playback              *playback.Store
 	ManualChannels        *manualchannels.Service
 	Live                  *live.Manager
 	PartnerCatalog        *edgecatalog.Service
@@ -55,6 +57,10 @@ func (a *API) Handler() http.Handler {
 	handler := guard.Wrap(a.routes())
 	if a.Accounts != nil {
 		panel := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/api/v1/live/playback-links" {
+				a.playbackLinks(w, r)
+				return
+			}
 			if r.URL.Path == "/api/v1/manual-channels" || strings.HasPrefix(r.URL.Path, "/api/v1/manual-channels/") {
 				a.manualChannels(w, r)
 				return
@@ -73,7 +79,14 @@ func (a *API) Handler() http.Handler {
 			}
 			handler.ServeHTTP(w, r)
 		})
-		return a.Accounts.Wrap(a.PublicOrigin, panel)
+		protected := a.Accounts.Wrap(a.PublicOrigin, panel)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/api/v1/playback/") {
+				a.externalPlayback(w, r)
+				return
+			}
+			protected.ServeHTTP(w, r)
+		})
 	}
 	return handler
 }

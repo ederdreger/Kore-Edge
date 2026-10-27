@@ -47,6 +47,7 @@ jobs:
           tar -xJf "$archive" --strip-components=1 -C "$RUNNER_TEMP/kore-manual-ffmpeg"
           umask 077
           KORE_MANUAL_FFMPEG="$RUNNER_TEMP/kore-manual-ffmpeg/bin/ffmpeg" go test -race ./internal/manualchannels -count=1 -timeout=90s
+          KORE_PLAYBACK_FFMPEG="$RUNNER_TEMP/kore-manual-ffmpeg/bin/ffmpeg" go test -race ./internal/api -run TestVLCNativeHLS -count=1 -timeout=60s
       - run: go test ./internal/provision -run '^TestConcurrentConsumptionAcrossRegistryInstances$' -count=50 -timeout=120s
       - run: go build ./cmd/...
   web:
