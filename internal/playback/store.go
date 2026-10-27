@@ -1,5 +1,5 @@
-// Package playback issues scoped, revocable media capabilities for external
-// players. It never authenticates administration or stores origin credentials.
+// Package playback supplies stable scoped channel identities for external
+// players, retaining verification of legacy temporary links during migration.
 package playback
 
 import (
@@ -28,6 +28,7 @@ var ownerID = regexp.MustCompile(`^[a-f0-9]{32}$`)
 const Lifetime = 7 * 24 * time.Hour
 
 type Claims struct {
+	Permanent  bool   `json:"-"`
 	Channel    string `json:"c"`
 	Owner      string `json:"o"`
 	Revision   uint64 `json:"r"`
@@ -130,6 +131,16 @@ func (s *Store) Verify(raw, id string, hls bool) (Claims, error) {
 	if len(raw) > 512 || !safeID.MatchString(id) {
 		return Claims{}, ErrDenied
 	}
+	if strings.HasPrefix(raw, "p1.") {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		expected := s.permanentLocked(id)
+		if !hmac.Equal([]byte(raw), []byte(expected)) {
+			return Claims{}, ErrDenied
+		}
+		return Claims{Channel: id, HLS: true, Permanent: true}, nil
+	}
+
 	parts := strings.Split(raw, ".")
 	if len(parts) != 2 {
 		return Claims{}, ErrDenied
@@ -202,4 +213,25 @@ func (s *Store) Acquire(raw string) (func(), bool) {
 			}
 		})
 	}, true
+}
+
+// Permanent is deterministic for the channel lifetime, independent of accounts,
+// clock, source URL and process restarts. Only channel deletion changes its key.
+func (s *Store) Permanent(id string) (string, error) {
+	if !safeID.MatchString(id) {
+		return "", ErrDenied
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.permanentLocked(id), nil
+}
+func (s *Store) permanentLocked(id string) string {
+	mac := hmac.New(sha256.New, s.key)
+	data, _ := json.Marshal(struct {
+		Domain     string
+		ID         string
+		Generation uint64
+	}{"permanent-channel-v1", id, s.data.Revisions[id]})
+	mac.Write(data)
+	return "p1." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }

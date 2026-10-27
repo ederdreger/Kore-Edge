@@ -9,6 +9,7 @@ import (
 	"kore-edge/internal/accounts"
 	"kore-edge/internal/live"
 	"kore-edge/internal/manualchannels"
+	"kore-edge/internal/playback"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -36,7 +37,11 @@ func TestManualChannelsSessionCSRFRevisionAndSecretBoundary(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer manager.Close()
-	h := (&API{ManualChannels: sources, Live: manager, Accounts: users, PublicOrigin: "https://edge.example"}).Handler()
+	outputLinks, e := playback.Open(filepath.Join(directory, "playback"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	h := (&API{Playback: outputLinks, ManualChannels: sources, Live: manager, Accounts: users, PublicOrigin: "https://edge.example"}).Handler()
 	var cookie *http.Cookie
 	csrf := ""
 	call := func(method, path string, value any, token string) *httptest.ResponseRecorder {
@@ -113,8 +118,15 @@ func TestManualChannelsSessionCSRFRevisionAndSecretBoundary(t *testing.T) {
 		t.Fatal("viewer stream operation", w.Code)
 	}
 	login("owner")
+	oldLink, e := outputLinks.Permanent(value.ChannelID)
+	if e != nil {
+		t.Fatal(e)
+	}
 	if w = call("POST", "/api/v1/manual-channels", map[string]any{"action": "delete", "revision": 1, "confirmed": true, "source": map[string]any{"id": value.ChannelID}}, csrf); w.Code != 200 {
 		t.Fatal("delete", w.Code)
+	}
+	if _, e := outputLinks.Verify(oldLink, value.ChannelID, false); e == nil {
+		t.Fatal("deleted channel kept its permanent link")
 	}
 	if sources.Authorized(value.ChannelID, "http_ts") || len(manager.Snapshot().Configuration.Channels) != 0 {
 		t.Fatal("deleted channel retained grant/config")

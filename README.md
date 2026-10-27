@@ -351,8 +351,8 @@ Em **Canais**, escolha **Lista** (zebra, busca e filtros) ou **Mini cards**.
 Os botões de teste de sinal e o atalho duplicado de recepção/saídas foram
 removidos dessa tela. Use a engrenagem para configurar e a aba **Saídas** para
 consultar links TS/HLS ou informar o destino multicast UDP. **Lista TS/HLS**
-exporta M3U para players externos, com chaves limitadas aos canais e validade de
-sete dias. Gerar/revogar exige sessão administrativa; reproduzir não exige cookie. HLS depende do grant da matriz e dos codecs.
+exporta M3U com os endereços permanentes dos canais filtrados. Consultar os
+endereços exige sessão administrativa; reproduzir não exige cookie. HLS depende do grant da matriz e dos codecs.
 
 O mini player da recepção compartilhada não tem limite de cinco minutos e
 reconecta automaticamente em falhas transitórias, com espera máxima de 30 segundos.
@@ -376,19 +376,23 @@ o painel ao iniciar muitos canais no serviço instalado com TasksMax=64/256 MiB.
 O atualizador observa o mesmo PID e a prontidão por 30 segundos antes de concluir.
 O rollback inclui `live/distribution.json`, além de YAML, gateway e release.
 
-## Saídas para VLC
+## Saídas permanentes para XUI One
 
-Em **Canais → selecione o canal → Saídas**, clique em **Gerar links para VLC**.
-Use **Copiar link TS** e, no VLC, **Mídia → Abrir fluxo de rede (Ctrl+N)**.
-O link HLS só é fornecido quando configurado/autorizado; aguarde a saída ficar
-pronta. **Lista TS/HLS** exporta as saídas prontas da busca com o mesmo acesso.
+Cada canal possui endereços MPEG-TS e HLS fixos, exibidos automaticamente em
+**Canais → canal → Saídas**. Copie o endereço para o XUI One ou outro receptor.
+Não há geração manual, expiração ou botão de revogar. **Lista TS/HLS**
+exporta os canais filtrados com os mesmos endereços. O HLS tem endereço reservado
+mesmo antes de estar pronto, mas só fornece segmentos quando configurado,
+autorizado e com recursos/codecs disponíveis.
 
-Links antigos `/api/v1/live/media/...` e `/api/v1/live/hls/...` são internos do
-painel e exigem cookie. Os links externos `/api/v1/playback/...` usam uma chave
-de reprodução com validade de sete dias. **Revogar links deste canal** invalida
-os links anteriores e encerra reproduções externas, sem parar o ingest.
-Não inclui senha administrativa ou URL da matriz. A chave não permite administrar
-o Edge. Troca de senha, bloqueio do administrador emissor e revogação de grants
-também bloqueiam esses acessos. O VLC precisa confiar no certificado HTTPS do
-Edge; não se desativa a verificação TLS nem se abre HTTP público.
-Veja [acesso externo de mídia](docs/modules/21-playback-links.md).
+Os links permanecem iguais após reiniciar, alterar senha/administrador, nome ou
+origem. Excluir o canal invalida sua identidade de saída; recriar gera outra.
+O acesso usa chave privada ao canal, sem senha de administrador e sem URL da
+matriz. Mantenha backup do armazenamento privado. Permissões atuais da matriz
+continuam obrigatórias; link permanente não contorna bloqueio de origem.
+
+A saída TS mantém a mesma conexão HTTP durante tentativas de recuperar a origem,
+seguindo o novo fluxo compartilhado. Pacotes nulos mantêm o transporte no intervalo
+sem contar como sinal/bitrate real. Parar manualmente encerra a saída. Falhas de
+rede, consumidor lento ou indisponibilidade da origem não podem ser eliminadas
+por um endereço permanente. Veja [contrato e migração](docs/modules/21-playback-links.md).

@@ -167,15 +167,19 @@ compartilhadas. Falta de capacidade é fila, não falha da origem. A reserva dur
 até o término do processo ou fechamento da saída; cancelamentos liberam vagas.
 O runtime padrão é limitado no binário sem mudar unidades systemd.
 
-## Player externo sem cookie
+## Saídas permanentes por canal
 
-`internal/playback` assina capacidades HMAC-SHA256 por canal, owner/revisão,
-geração de revogação e prazo de sete dias. O segredo e as gerações ficam
-privados em `users/playback/playback.json`; URLs completas não são persistidas.
-Emissão/revogação usam sessão administrativa, CSRF e auditoria sem senha repetida.
-A rota `/api/v1/playback/` aceita apenas GET/HEAD pelo gateway loopback, sem criar
-sessão de administração. Verifica capability, administrador emissor ainda válido
-e grants atuais. TS revalida a cada segundo; HLS valida playlist e cada segmento.
-Os caminhos relativos dos segmentos conservam a capability no diretório da URL.
-Há no máximo dois consumidores simultâneos por link e 32 globais. O fluxo vem
-do mesmo `live.Manager`, sem abrir outra origem nem transcodificar.
+`internal/playback` deriva uma chave HMAC-SHA256 determinística por identidade e
+geração de exclusão do canal. Não depende de conta, sessão ou horário. A chave
+raiz e gerações ficam privadas em `users/playback/playback.json`; URLs completas
+não são gravadas. GET administrativo lista os endereços automaticamente.
+A rota de mídia valida chave e grants atuais, sem permitir administrar o Edge.
+O formato temporário anterior continua aceito conforme suas regras originais;
+novos endereços usam o domínio criptográfico `permanent-channel-v1`.
+
+TS persistente segue trocas de hub/job sem desconectar por uma tentativa de
+reconexão. Pacotes nulos de transporte durante o intervalo não entram no hub nem
+nas métricas da origem. Pausa explícita, exclusão, grant indisponível, shutdown,
+cliente desconectado e limites de escrita encerram a resposta. Não abre origem
+extra. HLS valida cada playlist/segmento com o mesmo endereço permanente; a
+existência do endereço não significa que o segmentador está pronto.

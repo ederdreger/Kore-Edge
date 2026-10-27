@@ -52,17 +52,16 @@ bloqueados. Codecs incompatíveis exigem correção na origem, sem transcodifica
 
 ## 4. Links TS/HLS e destino UDP
 
-Na aba **Saídas**, clique em **Gerar links para VLC**, copie o link MPEG-TS e
-abra **Mídia → Abrir fluxo de rede (Ctrl+N)** no VLC. Para HLS, aguarde o status
-pronto e use **Copiar link HLS**. As listas TS/HLS exportam apenas as saídas
-prontas da busca, com chaves de reprodução válidas por sete dias.
+Na aba **Saídas**, os links MPEG-TS e HLS aparecem automaticamente. Copie-os
+para o XUI One ou outro receptor. **Lista TS/HLS** exporta os canais filtrados.
+Não há botão de gerar ou revogar, nem prazo de expiração.
 
-Não use os caminhos antigos `/api/v1/live/...` no VLC: exigem o cookie do
-navegador. Os links novos `/api/v1/playback/...` funcionam sem login no player,
-mas devem ser tratados como credenciais. Não contêm senha administrativa ou
-URL da matriz. **Revogar links deste canal** encerra os acessos anteriores sem
-parar a recepção. O VLC precisa confiar no certificado HTTPS do Edge; use o
-mesmo domínio/IP do certificado. Nunca publique a chave em mensagens ou logs.
+O endereço permanece o mesmo ao reiniciar o Edge, alterar origem ou trocar senha
+administrativa. Excluir o canal invalida o endereço antigo. Não compartilhe os
+links em logs ou tickets: eles incluem uma chave de reprodução exclusiva do canal.
+O receptor precisa confiar no certificado HTTPS do Edge. Os endereços antigos
+`/api/v1/live/...` continuam internos ao painel e exigem cookie. Substitua links
+antigos com prazo pelos novos endereços permanentes exibidos automaticamente.
 
 HLS é preparado para novos canais quando a matriz permite a saída. Precisa de
 FFmpeg/ffprobe e H.264/AAC verificados. O painel informa preparação ou
