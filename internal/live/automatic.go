@@ -39,7 +39,7 @@ func (m *Manager) defaultChannel(id string) (ChannelConfig, error) {
 		for _, protocol := range []string{"http_ts", "srt", "hls", "udp"} {
 			for _, p := range c.Protocols {
 				if p.ID == protocol && m.catalog.Authorized(id, protocol) {
-					return ChannelConfig{ChannelID: id, Protocol: protocol, Resume: true}, nil
+					return ChannelConfig{ChannelID: id, Protocol: protocol, Resume: true, HLS: m.catalog.OutputAuthorized(id, "hls")}, nil
 				}
 			}
 		}
@@ -99,7 +99,15 @@ func (m *Manager) reconcileAutomatic() {
 	}
 	for _, c := range snapshot.Catalog.Channels {
 		if strings.HasPrefix(c.ID, "local_") {
-			continue
+			desired := false
+			for _, entry := range m.store.snapshot().Channels {
+				if entry.ChannelID == c.ID {
+					desired = entry.Resume && !entry.AutoPaused
+				}
+			}
+			if !desired {
+				continue
+			}
 		}
 		// No retry loop for terminal failures; no restart of a manually stopped job.
 		if m.jobs[c.ID] != nil {

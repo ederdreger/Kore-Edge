@@ -6,14 +6,12 @@
 2. Cole o **link de saída** do canal na matriz. O protocolo aparece imediatamente.
 3. Ajuste nome e categoria, se desejar. Sem nome, o servidor usa o nome extraído
    do caminho ou do stream ID. Não são criados canais de demonstração.
-4. **Verificar sinal** recebe uma amostra curta. Em HTTP sem extensão, também
-   identifica o formato real. É opcional para links com formato conhecido.
-5. Clique em **Salvar canal**. Isso prepara a recepção, sem abrir a origem.
-6. Na lista, selecione o canal e clique em **Iniciar canal**. O botão passa a **Parar canal**.
-   O bitrate, o primeiro sinal e os contadores de transporte são medições reais.
+4. Para HTTP sem extensão, selecione o formato informado pela matriz. Não há botão de teste no cadastro.
+5. Clique em **Salvar canal**. Um canal habilitado inicia automaticamente ou aguarda vaga.
+6. Use o botão alternado **Iniciar/Parar** para controlar a recepção. HLS é preparado quando autorizado; ferramentas/codecs incompatíveis ficam visíveis no status.
 7. Use **Reproduzir canal**. A prévia compartilha o fluxo já aberto e fechá-la não
    interrompe a recepção. Canais manuais parados não são iniciados pelo player.
-8. Em **Recepção e saídas**, configure HLS local e/ou multicast UDP, se necessários.
+8. Em a engrenagem do canal, configure HLS local e/ou multicast UDP, se necessários.
    As saídas ficam no próprio canal. Para editar a origem,
    pare a recepção e use **Editar origem**. Ao editar apenas o nome/categoria,
    deixe o link vazio: usuário, senha e parâmetros cadastrados serão preservados.
@@ -92,7 +90,7 @@ navegador ou HLS local consigam reproduzi-los. Não há transcodificação autom
   restart fica desmarcada e precisa ser revisada novamente. Para editar/excluir,
   pare o canal primeiro. Cadastro desabilitado não autoriza recepção ou saída.
 - Continuam valendo os limites do `live`: 16 recepções simultâneas, 512 planos,
-  fan-out limitado, quatro tentativas com backoff por ativação e detecção de
+  fan-out limitado, reconexão com backoff limitado a 30 segundos e detecção de
   ausência de mídia. A capacidade real do servidor exige homologação.
 - HLS tem até 1 MiB por playlist, 32 MiB por segmento/resposta e 1.024 referências
   opacas por canal. Requisições são limitadas, com timeouts de conexão e resposta.
@@ -148,4 +146,4 @@ Pós-validação: `/healthz` e `/readyz` 200, API de cadastros sem sessão 401, 
 tela disponível, cadastros anteriores preservados e nenhuma origem nova iniciada
 automaticamente. A retomada de planos já autorizados segue o contrato de `live`.
 
-A navegação de saídas foi consolidada em **Canais**. Use a engrenagem ou **Recepção e saídas** para preparar cada canal; os endereços antigos `#udp` e `#hls` abrem essa tela. A janela abre antes da consulta de ferramentas e permite repetir uma consulta que falhou. Inventário indisponível impede UDP, sem inventar interfaces ou alterar o sandbox do serviço.
+A navegação de saídas foi consolidada em **Canais**. Use a engrenagem ou a engrenagem do canal para preparar cada canal; os endereços antigos `#udp` e `#hls` abrem essa tela. A janela abre antes da consulta de ferramentas e permite repetir uma consulta que falhou. Inventário indisponível impede UDP, sem inventar interfaces ou alterar o sandbox do serviço.

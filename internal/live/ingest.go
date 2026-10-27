@@ -127,6 +127,7 @@ func (m *Manager) attempt(j *job) error {
 			now := time.Now().UTC()
 			elapsed := now.Sub(attemptStart).Milliseconds()
 			j.status.FirstPacketAt = now
+			j.status.LastRecoveryAt = now
 			j.status.StartupMS = &elapsed
 		}
 		j.status.State = "running"
@@ -144,6 +145,7 @@ func (m *Manager) attempt(j *job) error {
 					j.status.UDP = "failed"
 				}
 				j.mu.Unlock()
+				return ErrUnavailable
 			} else {
 				j.mu.Lock()
 				j.status.UDP = "sending"
@@ -159,6 +161,7 @@ func (m *Manager) attempt(j *job) error {
 					j.status.HLS = "failed_or_revoked"
 				}
 				j.mu.Unlock()
+				return ErrUnavailable
 			}
 		}
 		if hlsPending {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"golang.org/x/crypto/bcrypt"
+	"io"
 	"kore-edge/internal/accounts"
 	"kore-edge/internal/live"
 	"kore-edge/internal/manualchannels"
@@ -30,7 +31,7 @@ func TestManualChannelsSessionCSRFRevisionAndSecretBoundary(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	manager, e := live.New(context.Background(), filepath.Join(directory, "live"), sources)
+	manager, e := live.New(context.Background(), filepath.Join(directory, "live"), apiManualCatalog{sources})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -81,8 +82,9 @@ func TestManualChannelsSessionCSRFRevisionAndSecretBoundary(t *testing.T) {
 		Revision  uint64 `json:"revision"`
 		ChannelID string `json:"channel_id"`
 		Prepared  bool   `json:"prepared"`
+		Started   bool   `json:"started"`
 	}
-	if json.Unmarshal(w.Body.Bytes(), &value) != nil || value.ChannelID == "" || !value.Prepared || value.Revision != 1 {
+	if json.Unmarshal(w.Body.Bytes(), &value) != nil || value.ChannelID == "" || !value.Prepared || !value.Started || value.Revision != 1 {
 		t.Fatal("default reception not prepared")
 	}
 	for _, path := range []string{"/api/v1/manual-channels", "/api/v1/live"} {
@@ -123,4 +125,12 @@ func TestManualChannelsSessionCSRFRevisionAndSecretBoundary(t *testing.T) {
 	if w = call("POST", "/api/v1/manual-channels", input, csrf); w.Code != 401 {
 		t.Fatal("revoked session accepted", w.Code)
 	}
+}
+
+type apiManualCatalog struct{ *manualchannels.Service }
+
+func (c apiManualCatalog) OpenHTTP(ctx context.Context, _ string) (io.ReadCloser, error) {
+	r, w := io.Pipe()
+	go func() { <-ctx.Done(); w.Close() }()
+	return r, nil
 }

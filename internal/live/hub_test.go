@@ -41,7 +41,7 @@ func TestHubSharesBoundedHistoryAndDisconnectsSlowConsumers(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("fanout stalled")
 	}
-	for i := 0; i < 7*40; i++ {
+	for i := 0; i < 7*(subscriberChunks+1); i++ {
 		_ = hub.WritePacket(p)
 	}
 	if hub.Snapshot().Subscribers != 0 {

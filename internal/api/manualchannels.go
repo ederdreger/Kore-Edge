@@ -101,7 +101,7 @@ func (a *API) manualChannels(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 				current := a.Live.Snapshot().Configuration
-				config := live.ChannelConfig{ChannelID: id, Protocol: protocol}
+				config := live.ChannelConfig{ChannelID: id, Protocol: protocol, HLS: a.ManualChannels.OutputAuthorized(id, "hls"), Resume: input.Source.Enabled}
 				for _, saved := range current.Channels {
 					if saved.ChannelID == id {
 						config = saved
@@ -109,7 +109,7 @@ func (a *API) manualChannels(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 				if input.Source.URL != "" {
-					config.Resume = false
+					config.Resume = input.Source.Enabled
 				}
 				tools := current.Tools
 				if tools.FFmpeg == "" {
@@ -118,7 +118,11 @@ func (a *API) manualChannels(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 				prepared := a.Live.Save(config, tools, current.Generation) == nil
-				result = map[string]any{"revision": inventory.Revision, "channels": inventory.Channels, "channel_id": id, "prepared": prepared}
+				started := false
+				if prepared && input.Source.Enabled {
+					started = a.Live.StartReviewed(id, a.Live.Snapshot().Configuration.Generation) == nil
+				}
+				result = map[string]any{"revision": inventory.Revision, "channels": inventory.Channels, "channel_id": id, "prepared": prepared, "started": started}
 				return nil
 			}
 			result = a.ManualChannels.Inventory()

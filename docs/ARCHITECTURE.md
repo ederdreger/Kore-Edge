@@ -160,4 +160,4 @@ Detalhes e limites em [cadastro manual](modules/20-manual-channels.md).
 
 O reconciliador de recepção Kore Play executa no agente a cada cinco segundos,
 com fila, limite de 16 canais ativos e pausa manual persistida em `auto_paused`.
-Não estende grants nem reinicia jobs com falha terminal indefinidamente.
+Não estende grants. Quedas são recuperadas com backoff cancelável de até 30 segundos.

@@ -1,5 +1,5 @@
 export type PreviewSource={id:string;name:string;protocol:'hls'|'http_ts';scope?:'live'|'output'};
-export type PreviewStatus={kind:'loading'|'playing'|'blocked'|'paused'|'error'|'ended';text:string};
+export type PreviewStatus={kind:'loading'|'playing'|'blocked'|'paused'|'error'|'ended';text:string;retryable?:boolean};
 
 // Only the authenticated local media proxy is a valid preview source.
 export function previewPath(source:PreviewSource){
@@ -22,7 +22,7 @@ export function startPreview(video:HTMLVideoElement,source:PreviewSource,notify:
   try{release?.()}catch{/* release must not prevent closing the media element */}
   video.pause();video.removeAttribute('src');video.load();
  }
- function finish(kind:PreviewStatus['kind'],text:string){if(stopped)return;stop();notify({kind,text})}
+ function finish(kind:PreviewStatus['kind'],text:string,retryable=!!source.scope){if(stopped)return;stop();notify({kind,text,retryable:(kind==='error'||kind==='ended')&&retryable})}
  function play(){void video.play().catch(error=>{
   if(stopped)return;
   if(error?.name==='NotAllowedError'){blocked=true;notify({kind:'blocked',text:'O navegador bloqueou o início automático. Clique em Reproduzir no vídeo.'})}
@@ -34,8 +34,8 @@ export function startPreview(video:HTMLVideoElement,source:PreviewSource,notify:
  listen('pause',()=>{if(wasPlaying)finish('paused','Prévia pausada e conexão encerrada. Use Reproduzir novamente para continuar.')});
  listen('error',()=>finish('error','Falha ao reproduzir. Verifique o sinal, a autorização e os codecs de áudio/vídeo suportados pelo navegador.'));
  listen('ended',()=>finish('ended','A transmissão terminou. Use Reproduzir novamente para consultar o sinal atual.'));
- const watchdog=setInterval(()=>{if(!blocked&&Date.now()-lastProgress>20000)finish('error','Nenhum avanço de vídeo em 20 segundos. Confira sinal, banda, autorização e codecs antes de tentar novamente.')},2000);
- timers.push(setTimeout(()=>finish('ended','Prévia de cinco minutos encerrada. Você pode reproduzir novamente ou testar outro canal.'),300000));
+ const watchdog=setInterval(()=>{if(!blocked&&Date.now()-lastProgress>20000)finish('error',source.scope?'Sem avanço de vídeo em 20 segundos. A conexão do player será refeita.':'Nenhum avanço de vídeo em 20 segundos. Confira sinal, banda, autorização e codecs antes de tentar novamente.')},2000);
+ if(!source.scope)timers.push(setTimeout(()=>finish('ended','Prévia de cinco minutos encerrada. Você pode reproduzir novamente ou testar outro canal.'),300000));
  video.muted=true;
  notify({kind:'loading',text:'Carregando a prévia autenticada…'});
  void (async()=>{
@@ -43,7 +43,7 @@ export function startPreview(video:HTMLVideoElement,source:PreviewSource,notify:
   if(source.protocol==='hls'){
    if(video.canPlayType('application/vnd.apple.mpegurl')){video.src=url;video.load();play();return}
    const {default:Hls}=await import('hls.js');if(stopped)return;
-   if(!Hls.isSupported()){finish('error','Este navegador não oferece suporte a HLS. Use um navegador com MediaSource ou HLS nativo.');return}
+   if(!Hls.isSupported()){finish('error','Este navegador não oferece suporte a HLS. Use um navegador com MediaSource ou HLS nativo.',false);return}
    const prefix=source.scope==='output'?`/api/v1/live/hls/${source.id}/`:`/api/v1/kore-play/media/${source.id}/hls/`;
    function checked(raw:string){const target=new URL(raw,window.location.origin);if(target.origin!==window.location.origin||!target.pathname.startsWith(prefix)||target.username||target.password||target.search||target.hash)throw new Error('invalid_media_request');return target.href}
    const hls=new Hls({enableWorker:false,debug:false,maxBufferLength:15,maxMaxBufferLength:30,maxBufferSize:24*1024*1024,backBufferLength:10,
@@ -51,14 +51,14 @@ export function startPreview(video:HTMLVideoElement,source:PreviewSource,notify:
     xhrSetup:(xhr,url)=>{checked(url);xhr.withCredentials=true},
     fetchSetup:(context,init)=>new Request(checked(context.url),{...init,credentials:'same-origin',redirect:'error'})});
    release=()=>hls.destroy();
-   hls.on(Hls.Events.ERROR,(_event,data)=>{if(data.fatal)finish('error',data.response?.code===401||data.response?.code===403?'Acesso ao canal recusado. Confira a sessão e as permissões do parceiro.':'Não foi possível reproduzir HLS. Confira playlist, segmentos, sinal e codecs na origem.')});
+   hls.on(Hls.Events.ERROR,(_event,data)=>{if(data.fatal){const denied=data.response?.code===401||data.response?.code===403;finish('error',denied?'Acesso ao canal recusado. Confira a sess\u00e3o e as permiss\u00f5es do parceiro.':'Falha HLS. Aguardando reconex\u00e3o.',!denied&&!!source.scope)}});
    hls.on(Hls.Events.MANIFEST_PARSED,play);hls.loadSource(url);hls.attachMedia(video);
   }else{
    const {default:mpegts}=await import('mpegts.js');if(stopped)return;
    mpegts.LoggingControl.enableAll=false;
-   if(!mpegts.getFeatureList().mseLivePlayback){finish('error','Este navegador não suporta prévia HTTP MPEG-TS. Use Chrome ou Edge atualizado e codecs compatíveis.');return}
+   if(!mpegts.getFeatureList().mseLivePlayback){finish('error','Este navegador não suporta prévia HTTP MPEG-TS. Use Chrome ou Edge atualizado e codecs compatíveis.',false);return}
    const player=mpegts.createPlayer({type:'mpegts',isLive:true,withCredentials:true,url},{enableWorker:false,enableWorkerForMSE:false,enableStashBuffer:true,autoCleanupSourceBuffer:true,autoCleanupMaxBackwardDuration:15,autoCleanupMinBackwardDuration:5,liveBufferLatencyChasing:true,liveBufferLatencyMaxLatency:10,liveBufferLatencyMinRemain:4});
-   release=()=>player.destroy();player.on(mpegts.Events.ERROR,()=>finish('error','Não foi possível reproduzir MPEG-TS. Confira o sinal e os codecs de áudio/vídeo suportados pelo navegador.'));
+   release=()=>player.destroy();player.on(mpegts.Events.ERROR,(_type,_detail,info)=>{const code=Number(info?.code);finish('error',code===401||code===403?'Acesso ao canal recusado. Entre novamente no painel.':'Falha MPEG-TS. Aguardando reconex\u00e3o.',!!source.scope&&code!==401&&code!==403)});
    player.attachMediaElement(video);player.load();play();
   }
  })().catch(()=>finish('error','Não foi possível iniciar o player. Atualize a página e confira sinal, autorização e compatibilidade do navegador.'));

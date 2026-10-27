@@ -88,7 +88,7 @@ func (m *Manager) MediaIfActive(w http.ResponseWriter, r *http.Request, id, prot
 	if buffer.Flush() != nil || control.Flush() != nil {
 		return true
 	}
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {
@@ -97,6 +97,11 @@ func (m *Manager) MediaIfActive(w http.ResponseWriter, r *http.Request, id, prot
 		case <-j.ctx.Done():
 			return true
 		case <-ticker.C:
+			if buffer.Buffered() > 0 {
+				if control.SetWriteDeadline(time.Now().Add(8*time.Second)) != nil || buffer.Flush() != nil || control.Flush() != nil {
+					return true
+				}
+			}
 			if !m.catalog.Authorized(id, protocol) {
 				return true
 			}
@@ -107,11 +112,13 @@ func (m *Manager) MediaIfActive(w http.ResponseWriter, r *http.Request, id, prot
 			if control.SetWriteDeadline(time.Now().Add(8*time.Second)) != nil {
 				return true
 			}
-			if _, e = w.Write(chunk); e != nil {
+			if _, e = buffer.Write(chunk); e != nil {
 				return true
 			}
-			if control.Flush() != nil {
-				return true
+			if buffer.Buffered() >= 32*1024 {
+				if buffer.Flush() != nil || control.Flush() != nil {
+					return true
+				}
 			}
 		}
 	}

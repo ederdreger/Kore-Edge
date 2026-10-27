@@ -28,19 +28,16 @@ até nova confirmação no painel.
 1. Abra **Canais → Sincronizar com matriz** e use **Buscar canais**.
    Confira a opção **Atualizar automaticamente a cada minuto** para operação
    contínua: o catálogo assinado expira em cinco minutos sem renovação.
-2. Selecione um canal da lista e clique em **Editar canal**.
-3. Confira protocolo e ferramentas detectadas. Salve a preparação.
-4. Clique em **Iniciar recepção**, confira o resumo e confirme com a senha do Edge.
+2. Canais autorizados iniciam automaticamente, até 16 simultâneos; os demais aguardam vaga.
+3. Use a engrenagem para ajustar protocolo e saídas. Salvar um canal ativo reinicia somente ele.
+4. O controle **Iniciar/Parar** executa diretamente com sua sessão administrativa.
 5. Aguarde **Recebendo** e bitrate medido; depois use **Reproduzir canal**.
 
-O player informa o tempo de início. A recepção informa separadamente o tempo
-até o primeiro pacote. Sem recepção iniciada, HTTP/HLS ainda permitem prévia
-identificada como **sob demanda**. Fechar ou pausar a prévia encerra apenas essa
-prévia; **Parar** encerra recepção e saídas. SRT exige recepção iniciada.
-
-Se um canal SRT vier sem protocolo disponível, confira se o listener da matriz
-está escutando, publique a seleção e sincronize novamente. Não há fallback HTTP
-oculto para uma entrada anunciada como SRT.
+A recepção permanece aberta com o player fechado. O player contínuo não tem
+limite de cinco minutos e reconecta em falhas transitórias. A origem é monitorada
+por ausência de pacotes; o agente reconecta com backoff de até 30 segundos.
+Parar persiste pausa manual. Revogação e expiração continuam bloqueando o acesso.
+Veja o [passo a passo atual](CANAIS-KORE-PLAY.md).
 
 ## 3. Configurar as saídas
 
