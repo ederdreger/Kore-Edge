@@ -80,7 +80,7 @@ func TestVLCNativeHLSPlaylistAndSegmentWithoutCookies(t *testing.T) {
 	if users.BootstrapHash("owner", string(hash)) != nil {
 		t.Fatal("bootstrap")
 	}
-	owner := users.Users()[0]
+
 	store, e := playback.Open(filepath.Join(dir, "playback"))
 	if e != nil {
 		t.Fatal(e)
@@ -103,7 +103,7 @@ func TestVLCNativeHLSPlaylistAndSegmentWithoutCookies(t *testing.T) {
 	defer server.Close()
 	client := server.Client()
 	client.Timeout = 4 * time.Second
-	raw, _, e := store.Issue("synthetic", owner.ID, owner.Revision, true)
+	raw, e := store.Permanent("synthetic")
 	if e != nil {
 		t.Fatal("issue")
 	}
@@ -154,6 +154,20 @@ func TestVLCNativeHLSPlaylistAndSegmentWithoutCookies(t *testing.T) {
 	info, e := cmd.Output()
 	if e != nil || hls.ValidateCodecs(info) != nil {
 		t.Fatal("not compatible H.264/AAC TS")
+	}
+
+	ts, e := client.Get(strings.TrimSuffix(playlistURL, "index.m3u8") + "stream.ts")
+	if e != nil {
+		t.Fatal("permanent TS request")
+	}
+	tsData := make([]byte, 188*400)
+	_, e = io.ReadFull(ts.Body, tsData)
+	ts.Body.Close()
+	if e != nil || ts.StatusCode != 200 {
+		t.Fatal("permanent TS output", ts.StatusCode, e)
+	}
+	if hls.ValidateInput(ctx, hls.Config{Enabled: true, FFmpeg: tool, FFprobe: probe, Root: filepath.Join(dir, "codec-check")}, tsData) != nil {
+		t.Fatal("permanent TS does not preserve H.264/AAC")
 	}
 	if c.opens.Load() != 1 {
 		t.Fatal("HLS player opened duplicate origin")

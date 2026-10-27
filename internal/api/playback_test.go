@@ -66,7 +66,7 @@ func (c *vlcCatalog) OpenHTTP(ctx context.Context, _ string) (io.ReadCloser, err
 	return r, nil
 }
 
-func TestVLCTokenStreamsWithoutCookieAndRevokesOpenConnection(t *testing.T) {
+func TestPermanentOutputsSurviveAccountChangeAndCloseOnDeletion(t *testing.T) {
 	dir := t.TempDir()
 	users, e := accounts.Open(filepath.Join(dir, "users"))
 	if e != nil {
@@ -116,6 +116,10 @@ func TestVLCTokenStreamsWithoutCookieAndRevokesOpenConnection(t *testing.T) {
 		CSRF string `json:"csrf"`
 	}
 	_ = json.Unmarshal(login.Body.Bytes(), &session)
+	auto := request("GET", "/api/v1/live/playback-links", "", "", cookie)
+	if auto.Code != 200 {
+		t.Fatal("automatic output listing requires manual issuance")
+	}
 	body := `{"action":"issue","channel_ids":["synthetic"]}`
 	if request("POST", "/api/v1/live/playback-links", body, "", nil).Code != 401 || request("POST", "/api/v1/live/playback-links", body, "", cookie).Code != 403 {
 		t.Fatal("issue without session/CSRF")
@@ -131,10 +135,23 @@ func TestVLCTokenStreamsWithoutCookieAndRevokesOpenConnection(t *testing.T) {
 		} `json:"links"`
 	}
 	_ = json.Unmarshal(issued.Body.Bytes(), &value)
-	if len(value.Links) != 1 || value.Links[0].HLS != "" {
-		t.Fatal("unconfigured HLS advertised")
+	if len(value.Links) != 1 || value.Links[0].HLS == "" {
+		t.Fatal("missing reserved HLS address")
 	}
 	path := value.Links[0].TS
+	var automatic struct {
+		Links []struct {
+			TS string `json:"ts_path"`
+		} `json:"links"`
+	}
+	_ = json.Unmarshal(auto.Body.Bytes(), &automatic)
+	if len(automatic.Links) != 1 || automatic.Links[0].TS != path {
+		t.Fatal("GET and export changed permanent address")
+	}
+	if strings.Contains(string(auto.Body.Bytes()), "expires_at") {
+		t.Fatal("permanent outputs still expire")
+	}
+
 	for _, bad := range []string{strings.Replace(path, "/synthetic/", "/other/", 1), path + "?token=other", strings.Replace(path, "/stream.ts", "/%2e%2e/stream.ts", 1)} {
 		if request("GET", bad, "", "", nil).Code == 200 {
 			t.Fatal("invalid scope accepted")
@@ -152,7 +169,7 @@ func TestVLCTokenStreamsWithoutCookieAndRevokesOpenConnection(t *testing.T) {
 	server := httptest.NewTLSServer(h)
 	defer server.Close()
 	client := server.Client()
-	client.Timeout = 5 * time.Second
+	client.Timeout = 10 * time.Second
 	resp, e := client.Get(server.URL + path)
 	if e != nil {
 		t.Fatal("VLC-style cookie-free request failed")
@@ -192,9 +209,29 @@ func TestVLCTokenStreamsWithoutCookieAndRevokesOpenConnection(t *testing.T) {
 		t.Fatal("capability became panel session")
 	}
 	revoked := request("POST", "/api/v1/live/playback-links", `{"action":"revoke","channel_ids":["synthetic"]}`, session.CSRF, cookie)
-	if revoked.Code != 200 {
-		t.Fatal("revoke failed")
+	if revoked.Code != 400 {
+		t.Fatal("rotating/revoking public action still available")
 	}
+	if users.ResetHash("owner", string(hash)) != nil {
+		t.Fatal("account update")
+	}
+	preserved, e := client.Head(server.URL + path)
+	if e != nil {
+		t.Fatal("persistent HEAD after account update")
+	}
+	preserved.Body.Close()
+	if preserved.StatusCode != 200 {
+		t.Fatal("account password revision interrupted permanent address")
+	}
+	if store.Revoke([]string{"synthetic"}) != nil {
+		t.Fatal("channel deletion invalidation")
+	}
+	refreshed := request("POST", "/api/v1/auth/login", `{"username":"owner","password":"synthetic-vlc-password"}`, "", nil)
+	if refreshed.Code != 200 {
+		t.Fatal("relogin")
+	}
+	cookie = refreshed.Result().Cookies()[0]
+	_ = json.Unmarshal(refreshed.Body.Bytes(), &session)
 	stoppedAt := time.Now()
 	_, _ = io.Copy(io.Discard, resp.Body)
 	if time.Since(stoppedAt) > 3*time.Second {
@@ -214,8 +251,8 @@ func TestVLCTokenStreamsWithoutCookieAndRevokesOpenConnection(t *testing.T) {
 	if request("GET", "/api/v1/playback/"+fresh+"/synthetic/stream.ts", "", "", nil).Code != 401 {
 		t.Fatal("revoked source grant accepted")
 	}
-	if request("POST", "/api/v1/live/playback-links", `{"action":"revoke","channel_ids":["synthetic"]}`, session.CSRF, cookie).Code != 200 {
-		t.Fatal("cannot revoke after source grant expired")
+	if request("POST", "/api/v1/live/playback-links", `{"action":"revoke","channel_ids":["synthetic"]}`, session.CSRF, cookie).Code != 400 {
+		t.Fatal("revocation API still available")
 	}
 	create := request("POST", "/api/v1/users", `{"username":"viewer","password":"synthetic-vlc-password","role":"viewer","current_password":"synthetic-vlc-password"}`, session.CSRF, cookie)
 	if create.Code != 204 {

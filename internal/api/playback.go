@@ -3,9 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"kore-edge/internal/accounts"
-	"kore-edge/internal/playback"
 	"net"
 	"net/http"
 	"net/url"
@@ -28,64 +26,79 @@ func (a *API) playbackLinks(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(503)
 		return
 	}
-	var input struct {
-		Action   string   `json:"action"`
-		Channels []string `json:"channel_ids"`
-	}
-	if r.Method != "POST" || !setupBody(r, &input) || len(input.Channels) == 0 || len(input.Channels) > 128 || (input.Action != "issue" && input.Action != "revoke") {
-		w.WriteHeader(400)
-		return
-	}
-	seen := map[string]bool{}
-	for _, id := range input.Channels {
-		if seen[id] || input.Action == "issue" && !a.Live.PlaybackAllowed(id, false) {
-			w.WriteHeader(403)
+	var ids []string
+	switch r.Method {
+	case "GET":
+		if r.URL.RawQuery != "" {
+			w.WriteHeader(400)
 			return
 		}
-		seen[id] = true
-	}
-	type link struct {
-		ID      string    `json:"channel_id"`
-		TS      string    `json:"ts_path"`
-		HLS     string    `json:"hls_path,omitempty"`
-		Expires time.Time `json:"expires_at"`
-	}
-	links := []link{}
-	e := a.Accounts.ChannelChange(u, "playback_"+input.Action, func() error {
-		if input.Action == "revoke" {
-			return a.Playback.Revoke(input.Channels)
+		view := a.Live.Snapshot()
+		seen := map[string]bool{}
+		for _, c := range view.Configuration.Channels {
+			if !seen[c.ChannelID] {
+				ids = append(ids, c.ChannelID)
+				seen[c.ChannelID] = true
+			}
 		}
+		if view.Catalog.Catalog != nil {
+			for _, c := range view.Catalog.Catalog.Channels {
+				if !seen[c.ID] {
+					ids = append(ids, c.ID)
+					seen[c.ID] = true
+				}
+			}
+		}
+	case "POST":
+		// Compatibility for cached exports. No rotating/revoking playback action.
+		var input struct {
+			Action   string   `json:"action"`
+			Channels []string `json:"channel_ids"`
+		}
+		if !setupBody(r, &input) || input.Action != "issue" || len(input.Channels) == 0 || len(input.Channels) > 128 {
+			w.WriteHeader(400)
+			return
+		}
+		known := map[string]bool{}
+		v := a.Live.Snapshot()
+		for _, c := range v.Configuration.Channels {
+			known[c.ChannelID] = true
+		}
+		if v.Catalog.Catalog != nil {
+			for _, c := range v.Catalog.Catalog.Channels {
+				known[c.ID] = true
+			}
+		}
+		seen := map[string]bool{}
 		for _, id := range input.Channels {
-			if !a.Live.PlaybackAllowed(id, false) {
-				return playback.ErrDenied
+			if !known[id] || seen[id] {
+				w.WriteHeader(403)
+				return
 			}
-			hls := a.Live.PlaybackAllowed(id, true)
-			raw, expires, e := a.Playback.Issue(id, u.ID, u.Revision, hls)
-			if e != nil {
-				return e
-			}
-			base := "/api/v1/playback/" + raw + "/" + id + "/"
-			out := link{ID: id, TS: base + "stream.ts", Expires: expires}
-			if hls {
-				out.HLS = base + "index.m3u8"
-			}
-			links = append(links, out)
+			seen[id] = true
 		}
-		return nil
-	})
-	if e != nil {
-		code := 503
-		if errors.Is(e, accounts.ErrBusy) {
-			code = 429
-		}
-		if errors.Is(e, accounts.ErrRejected) || errors.Is(e, playback.ErrDenied) {
-			code = 403
-		}
-		w.WriteHeader(code)
+		ids = input.Channels
+	default:
+		w.WriteHeader(405)
 		return
 	}
+	type link struct {
+		ID  string `json:"channel_id"`
+		TS  string `json:"ts_path"`
+		HLS string `json:"hls_path"`
+	}
+	links := []link{}
+	for _, id := range ids {
+		raw, e := a.Playback.Permanent(id)
+		if e != nil {
+			w.WriteHeader(503)
+			return
+		}
+		base := "/api/v1/playback/" + raw + "/" + id + "/"
+		links = append(links, link{ID: id, TS: base + "stream.ts", HLS: base + "index.m3u8"})
+	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"links": links, "revoked": input.Action == "revoke"})
+	_ = json.NewEncoder(w).Encode(map[string]any{"links": links})
 }
 
 func samePlaybackOrigin(raw, wanted string) bool {
@@ -143,7 +156,7 @@ func (a *API) externalPlayback(w http.ResponseWriter, r *http.Request) {
 	}
 	allowed := func() bool {
 		c, e := a.Playback.Verify(raw, id, isHLS)
-		return e == nil && a.Accounts.PlaybackOwner(c.Owner, c.Revision) && a.Live.PlaybackAllowed(id, isHLS)
+		return e == nil && (c.Permanent || a.Accounts.PlaybackOwner(c.Owner, c.Revision)) && a.Live.PlaybackAllowed(id, isHLS)
 	}
 	if !allowed() {
 		w.WriteHeader(401)
@@ -187,5 +200,10 @@ func (a *API) externalPlayback(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	defer func() { cancel(); <-done }()
-	a.Live.ServeTS(w, r.WithContext(ctx), id)
+	c, _ := a.Playback.Verify(raw, id, false)
+	if c.Permanent {
+		a.Live.ServePersistentTS(w, r.WithContext(ctx), id)
+	} else {
+		a.Live.ServeTS(w, r.WithContext(ctx), id)
+	}
 }

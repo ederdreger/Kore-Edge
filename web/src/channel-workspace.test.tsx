@@ -80,10 +80,10 @@ it('switches between a filterable channel list and mini cards without media acti
  fireEvent.change(screen.getByRole('textbox',{name:'Buscar canal'}),{target:{value:'missing'}});expect(screen.queryByRole('button',{name:'Configurar'})).toBeNull();
  fireEvent.change(screen.getByRole('textbox',{name:'Buscar canal'}),{target:{value:''}});fireEvent.click(screen.getByRole('button',{name:'Lista'}));expect(screen.getByRole('table')).toBeTruthy();expect(request.mock.calls.every(c=>c[0]==='GET')).toBe(true);
 });
-it('generates VLC links explicitly without creating a UDP destination',async()=>{
+it('loads permanent output addresses automatically without issuance or revocation actions',async()=>{
  const request=mount();await screen.findByRole('button',{name:'Configurar Canal sint\u00e9tico'});fireEvent.click(screen.getByRole('button',{name:'Sa\u00eddas'}));
- expect(screen.queryByLabelText('Link MPEG-TS para VLC')).toBeNull();fireEvent.click(screen.getByRole('button',{name:'Gerar links para VLC'}));
- expect((await screen.findByLabelText('Link MPEG-TS para VLC') as HTMLInputElement).value).toContain('/playback/SYNTHETIC/synthetic/stream.ts');
- expect((screen.getByLabelText('Link HLS para VLC') as HTMLInputElement).value).toContain('/playback/SYNTHETIC/synthetic/index.m3u8');
- expect(screen.getByRole('button',{name:'Configurar destino UDP'})).toBeTruthy();expect(request.mock.calls.filter(c=>c[0]==='POST')[0][1]).toBe('/api/v1/live/playback-links');
+ expect((await screen.findByLabelText('Link MPEG-TS') as HTMLInputElement).value).toContain('/playback/SYNTHETIC/synthetic/stream.ts');
+ expect((screen.getByLabelText('Link HLS') as HTMLInputElement).value).toContain('/playback/SYNTHETIC/synthetic/index.m3u8');
+ expect(screen.queryByRole('button',{name:/Gerar links|Revogar/})).toBeNull();expect(request.mock.calls.every(c=>c[0]==='GET')).toBe(true);
+ expect(screen.getByRole('button',{name:'Configurar destino UDP'})).toBeTruthy();
 });

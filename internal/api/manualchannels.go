@@ -88,6 +88,11 @@ func (a *API) manualChannels(w http.ResponseWriter, r *http.Request) {
 				if err := a.ManualChannels.Delete(input.Source.ID, input.Revision); err != nil {
 					return err
 				}
+				if a.Playback != nil {
+					if err := a.Playback.Revoke([]string{input.Source.ID}); err != nil {
+						return err
+					}
+				}
 			} else {
 				id, err := a.ManualChannels.Save(input.Source, input.Revision)
 				if err != nil {

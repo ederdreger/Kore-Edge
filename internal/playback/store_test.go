@@ -47,6 +47,50 @@ func TestScopeTamperingExpiryAndRestart(t *testing.T) {
 	}
 }
 
+func TestPermanentChannelAddressSurvivesClockAndRestartUntilDeletion(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "playback")
+	s, e := Open(dir)
+	if e != nil {
+		t.Fatal(e)
+	}
+	first, e := s.Permanent("synthetic")
+	if e != nil {
+		t.Fatal(e)
+	}
+	s.now = func() time.Time { return time.Now().AddDate(30, 0, 0) }
+	for i := 0; i < 3; i++ {
+		again, e := s.Permanent("synthetic")
+		if e != nil || again != first {
+			t.Fatal("permanent link rotated")
+		}
+	}
+	claims, e := s.Verify(first, "synthetic", true)
+	if e != nil || !claims.Permanent || claims.Owner != "" || claims.Expires != 0 {
+		t.Fatal("link depends on time or administrator", e)
+	}
+	if _, e = s.Verify(first, "other", false); e == nil {
+		t.Fatal("channel scope escaped")
+	}
+	next, e := Open(dir)
+	if e != nil {
+		t.Fatal(e)
+	}
+	again, e := next.Permanent("synthetic")
+	if e != nil || again != first {
+		t.Fatal("restart changed address")
+	}
+	if next.Revoke([]string{"synthetic"}) != nil {
+		t.Fatal("delete invalidation")
+	}
+	if _, e = next.Verify(first, "synthetic", false); e == nil {
+		t.Fatal("deleted channel link accepted")
+	}
+	recreated, e := next.Permanent("synthetic")
+	if e != nil || recreated == first {
+		t.Fatal("recreated channel reused deleted link")
+	}
+}
+
 func TestRevocationPersistsAndConcurrencyIsBounded(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "playback")
 	s, e := Open(dir)
