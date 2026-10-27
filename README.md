@@ -4,10 +4,10 @@
 
 Em **Canais → Adicionar canal**, cole a saída do Flussonic ou de outra matriz:
 HTTP MPEG-TS (`/mpegts` ou `.ts`), HLS (`.m3u8`), UDP MPEG-TS ou SRT caller.
-O protocolo aparece ao digitar; **Verificar sinal** faz uma leitura curta e
-**Salvar canal** prepara a recepção sem conectar. Depois use **Iniciar recepção**
-para manter o fluxo aberto, compartilhado com o player e as saídas UDP/HLS.
-Links sem extensão podem ser identificados pelo teste. UDP exige interface e IP
+O protocolo aparece ao digitar; **Salvar canal** inicia a recepção automaticamente
+quando habilitado. O fluxo é compartilhado com o player e as saídas. HLS é
+preparado quando autorizado, com verificação H.264/AAC e sem transcodificar.
+Para links sem extensão, selecione o formato informado pela matriz. UDP exige interface e IP
 local confirmados; o stream ID Flussonic `#!::r=CANAL,m=request` é preservado.
 
 Cadastro, teste e operação dos canais usam a sessão administrativa já autenticada,
@@ -18,8 +18,7 @@ permissões da matriz. Consulte o [passo a passo e limites](docs/modules/20-manu
 
 ## Recepção contínua, SRT e saídas reais
 
-**Canais** concentra cadastro, origem, recepção e saídas UDP/HLS por canal. O menu duplicado **Saídas** foi removido; links antigos abrem **Canais**. Configure um canal, salve a preparação e só então confirme **Iniciar
-recepção**. O fluxo permanece aberto com o player fechado e é compartilhado com
+**Canais** concentra cadastro, origem, recepção e saídas UDP/HLS por canal. O menu duplicado **Saídas** foi removido; links antigos abrem **Canais**. Configure um canal, salve a configuração e use **Iniciar canal**. O fluxo permanece aberto com o player fechado e é compartilhado com
 as saídas autorizadas. O painel informa tempo até o primeiro sinal, bitrate
 medido, continuidade TS, falhas e permissões; métricas ausentes não são simuladas.
 
@@ -328,3 +327,37 @@ a configuração. A cópia de dados públicos confirma sucesso ou orienta Ctrl+C
 Veja [habilitação, pré-verificação, aplicação e rollback](docs/modules/17-wireguard-connection.md).
 
 A janela de configuração abre imediatamente, com carregamento e nova tentativa em caso de falha. Inventário de rede indisponível bloqueia UDP, sem impedir preparar entradas HTTP/HLS/SRT. Nenhuma permissão de rede do serviço foi ampliada.
+
+## Controle simples de recepção
+
+Cada canal tem um controle que alterna entre **Iniciar** e **Parar**, sem senha ou
+janela de confirmação adicional. Sessão administrativa, CSRF, auditoria e
+controle de geração continuam obrigatórios. A engrenagem permite configurar um
+canal ativo: salvar valida primeiro e reinicia apenas esse canal, com breve
+interrupção. Configuração rejeitada não encerra a recepção atual.
+
+O agente inicia os canais autorizados do Kore Play sem depender do navegador.
+Uma seleção existente de protocolo é preservada; entradas novas preferem MPEG-TS
+HTTP, depois SRT e HLS, conforme a oferta da matriz. Não cria saídas UDP/HLS
+implicitamente. Saídas antigas preparadas sem retomada autorizada exigem Iniciar.
+Parar persiste a pausa; Iniciar libera novamente o canal. Novos canais manuais habilitados também iniciam ao salvar. Há até 16 recepções
+simultâneas; os demais aguardam vaga. Quedas acionam tentativas automáticas
+com backoff de 0,5 a 30 segundos, cancelável por Parar.
+Revogação e expiração continuam encerrando a mídia.
+
+## Player contínuo e organização dos canais
+
+Em **Canais**, escolha **Lista** (zebra, busca e filtros) ou **Mini cards**.
+Os botões de teste de sinal e o atalho duplicado de recepção/saídas foram
+removidos dessa tela. Use a engrenagem para configurar e a aba **Saídas** para
+consultar links TS/HLS ou informar o destino multicast UDP. **Lista TS/HLS**
+exporta M3U com os caminhos locais: exige sessão autenticada, não é uma playlist
+pública nem inclui senha/token. HLS depende do grant da matriz e dos codecs.
+
+O mini player da recepção compartilhada não tem limite de cinco minutos e
+reconecta automaticamente em falhas transitórias, com espera máxima de 30 segundos.
+Pausar/fechar interrompe apenas o player. Parar canal encerra a recepção e suas
+saídas. Codecs incompatíveis, sessão expirada e acesso revogado não são corrigidos
+por reiniciar. Qualidade mostra interrupções, horário da falha e próxima tentativa.
+A recuperação evita depender de ação manual para quedas de transporte; não garante
+vídeo sem cortes quando a origem, o link ou o navegador estiverem indisponíveis.

@@ -77,3 +77,14 @@ it('uses native HLS, stops an idle preview and enforces the five minute preview 
  stop=startPreview(video,source,s=>{last=s});await Promise.resolve();expect(last?.kind).toBe('blocked');
  await vi.advanceTimersByTimeAsync(300000);expect(last?.kind).toBe('ended');expect(last?.text).toContain('cinco minutos');expect(vi.getTimerCount()).toBe(0);
 });
+
+it('keeps a continuous stream beyond five minutes and reports a stall as recoverable',async()=>{
+ vi.useFakeTimers();vi.mocked(video.canPlayType).mockReturnValue('probably');vi.mocked(video.play).mockRejectedValue(new DOMException('blocked','NotAllowedError'));
+ let last:PreviewStatus|undefined;stop=startPreview(video,{...source,scope:'output'},s=>{last=s});await Promise.resolve();
+ await vi.advanceTimersByTimeAsync(301000);expect(last?.kind).toBe('blocked');expect(video.getAttribute('src')).toContain('/live/hls/');
+ video.dispatchEvent(new Event('playing'));await vi.advanceTimersByTimeAsync(22000);expect(last?.kind).toBe('error');expect(last?.retryable).toBe(true);
+});
+it('never automatically retries a continuous HLS authorization refusal',async()=>{
+ let last:PreviewStatus|undefined;stop=startPreview(video,{...source,scope:'output'},s=>{last=s});await vi.waitFor(()=>expect(mocks.hlsAttach).toHaveBeenCalled());
+ mocks.hlsHandlers.get('error')('error',{fatal:true,response:{code:403}});expect(last?.retryable).toBe(false);
+});

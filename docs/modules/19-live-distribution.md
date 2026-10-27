@@ -85,3 +85,44 @@ O catálogo central testa preparação SRT sem listener e compatibilidade de gra
 Isso não homologa banda, perdas, codecs de cada canal ou a rede física. A porta
 proposta e os destinos multicast continuam pendentes de confirmação humana.
 Veja o [passo a passo](../DISTRIBUICAO-AO-VIVO.md).
+
+## Controle simplificado atual
+
+Iniciar/Parar executam diretamente com sessão administrativa e CSRF, sem modal.
+Configurar um canal ativo valida e persiste antes de cancelar o job antigo;
+somente esse canal é reiniciado. A troca pode causar breve interrupção e fechar
+uma prévia existente. Reabrir o player usa o novo fluxo compartilhado.
+
+O reconciliador prepara e inicia entradas Kore Play autorizadas sem navegador,
+com seleção existente preservada, até 16 ativas e 512 configurações. A fila
+mostra Aguardando vaga. Parar persiste pausa e cancela retomada; Iniciar remove
+a pausa. Quedas usam reconexão automática com backoff até 30 segundos, cancelável por Parar. Canais manuais habilitados entram na fila ao salvar.
+Novas entradas preparam HLS apenas com grant; UDP exige destino confirmado; saídas antigas sem permissão
+de retomada exigem início explícito. Inventário e destinos UDP continuam exigindo
+revisão no formulário. Nenhum serviço do host ou rede é alterado pelo reconciliador.
+
+Aceite automatizado: início sem configuração prévia, parada persistida após
+reabrir armazenamento, fila e liberação de vaga, exclusão dos cadastros manuais,
+revogação, rejeição de edição inválida sem interrupção, isolamento da
+recepção vizinha e botão alternado sem confirmação. Testes usam fontes sintéticas.
+
+## Recuperação e transporte contínuo
+
+O watchdog detecta ausência de TS após 8 segundos (20 segundos no primeiro sinal),
+fecha a tentativa e reconecta com backoff de 0,5 a 30 segundos. O job permanece
+limitado a uma tentativa por canal e o limite global continua 16. Publica
+`interruptions`, `last_failure_at`, `last_recovery_at` e `next_retry_at` reais.
+Erros de escrita em saídas ativas também reiniciam apenas esse canal. Revogação
+encerra a autorização; não se ignora grant para manter mídia aberta.
+
+Cada consumidor HTTP possui fila de até 2 MiB, além do replay compartilhado
+limitado a 2 MiB, e 32 consumidores globais. Escrita usa blocos de 32 KiB ou
+flush em até 50 ms. Consumidor lento demais ainda é removido para proteger o
+ingest. O mini player live/output reconecta nesses encerramentos com backoff
+até 30 segundos, sem o teto de cinco minutos aplicado à prévia antiga sob demanda.
+Fechar/pausar cancela a reconexão. HTTP 401/403 informado pelo motor é terminal.
+
+Aceite sintético: mais de quatro quedas seguidas em HTTP/SRT, recuperação e
+parada manual, consumidor com jitter superior à antiga fila de 42 KiB, limite de
+buffer, player além de cinco minutos, reconexão cancelada ao fechar, bloqueio por
+permissão, links autenticados e alternância lista/cards. Sem teste de origem real.

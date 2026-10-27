@@ -24,17 +24,21 @@ type Output interface {
 	Close() error
 }
 type Status struct {
-	ChannelID     string    `json:"channel_id"`
-	Protocol      string    `json:"protocol"`
-	State         string    `json:"state"`
-	Error         string    `json:"error,omitempty"`
-	StartedAt     time.Time `json:"started_at"`
-	FirstPacketAt time.Time `json:"first_packet_at"`
-	StartupMS     *int64    `json:"startup_ms"`
-	Attempts      int       `json:"attempts"`
-	Metrics       Metrics   `json:"metrics"`
-	UDP           string    `json:"udp_state"`
-	HLS           string    `json:"hls_state"`
+	ChannelID      string    `json:"channel_id"`
+	Protocol       string    `json:"protocol"`
+	State          string    `json:"state"`
+	Error          string    `json:"error,omitempty"`
+	StartedAt      time.Time `json:"started_at"`
+	FirstPacketAt  time.Time `json:"first_packet_at"`
+	StartupMS      *int64    `json:"startup_ms"`
+	Interruptions  uint64    `json:"interruptions"`
+	LastFailureAt  time.Time `json:"last_failure_at"`
+	NextRetryAt    time.Time `json:"next_retry_at"`
+	LastRecoveryAt time.Time `json:"last_recovery_at"`
+	Attempts       int       `json:"attempts"`
+	Metrics        Metrics   `json:"metrics"`
+	UDP            string    `json:"udp_state"`
+	HLS            string    `json:"hls_state"`
 }
 type job struct {
 	mu          sync.Mutex
@@ -61,6 +65,9 @@ type Manager struct {
 	open         SourceOpener
 	interfaces   func() ([]multicast.Interface, error)
 	udpOpen      func(context.Context, multicast.Target, []multicast.Interface) (*multicast.Sender, error)
+	retryDelay   func(int) time.Duration
+	autoWG       sync.WaitGroup
+	autoOnce     sync.Once
 	closed       bool
 	previewSlots chan struct{}
 }
@@ -82,6 +89,7 @@ func New(ctx context.Context, directory string, catalog Catalog) (*Manager, erro
 	}
 	child, cancel := context.WithCancel(ctx)
 	manager := &Manager{ctx: child, cancel: cancel, store: store, catalog: catalog, jobs: map[string]*job{}, interfaces: multicast.Interfaces, udpOpen: multicast.OpenAuthorized, previewSlots: make(chan struct{}, 32)}
+	manager.retryDelay = recoveryDelay
 	manager.open = func(ctx context.Context, config ChannelConfig, tools Tools) (io.ReadCloser, error) {
 		switch config.Protocol {
 		case "http_ts":
@@ -132,7 +140,24 @@ func (m *Manager) Snapshot() Snapshot {
 		}
 		streams = append(streams, status)
 	}
-	view := Snapshot{Configuration: m.store.snapshot(), Catalog: m.catalog.Snapshot(), Streams: streams, MaxActive: 16}
+	configuration := m.store.snapshot()
+	for _, c := range configuration.Channels {
+		found := false
+		for _, s := range streams {
+			if s.ChannelID == c.ChannelID {
+				found = true
+				break
+			}
+		}
+		if !found && c.Resume && !c.AutoPaused {
+			state := "queued"
+			if !m.catalog.Authorized(c.ChannelID, c.Protocol) {
+				state = "unauthorized"
+			}
+			streams = append(streams, Status{ChannelID: c.ChannelID, Protocol: c.Protocol, State: state, UDP: "disabled", HLS: "disabled"})
+		}
+	}
+	view := Snapshot{Configuration: configuration, Catalog: m.catalog.Snapshot(), Streams: streams, MaxActive: 16}
 	if local, ok := m.catalog.(interface{ Revision() uint64 }); ok {
 		view.ManualRevision = local.Revision()
 	}
@@ -183,7 +208,7 @@ func (m *Manager) Save(config ChannelConfig, tools Tools, expected uint64) error
 	if config.UDP != nil && !m.catalog.OutputAuthorized(config.ChannelID, "udp") || config.HLS && !m.catalog.OutputAuthorized(config.ChannelID, "hls") {
 		return ErrDenied
 	}
-	if (config.Protocol == "hls" || config.HLS) && tools.FFmpeg == "" || config.HLS && tools.FFprobe == "" {
+	if config.Protocol == "hls" && tools.FFmpeg == "" {
 		return ErrUnavailable
 	}
 	if config.UDP != nil {
@@ -208,7 +233,7 @@ func (m *Manager) Save(config ChannelConfig, tools Tools, expected uint64) error
 		select {
 		case <-j.done:
 		default:
-			if j.config.ChannelID == config.ChannelID || current.Tools != tools {
+			if j.config.ChannelID != config.ChannelID && current.Tools != tools {
 				return ErrConflict
 			}
 		}
@@ -217,6 +242,7 @@ func (m *Manager) Save(config ChannelConfig, tools Tools, expected uint64) error
 	found := false
 	for i, entry := range current.Channels {
 		if entry.ChannelID == config.ChannelID {
+			config.AutoPaused = entry.AutoPaused
 			current.Channels[i] = config
 			found = true
 			break
@@ -225,7 +251,23 @@ func (m *Manager) Save(config ChannelConfig, tools Tools, expected uint64) error
 	if !found {
 		current.Channels = append(current.Channels, config)
 	}
-	return m.store.replace(current, expected)
+	if e := m.store.replace(current, expected); e != nil {
+		return e
+	}
+	if j := m.jobs[config.ChannelID]; j != nil {
+		select {
+		case <-j.done:
+		default:
+			j.cancel()
+			select {
+			case <-j.done:
+			case <-time.After(3 * time.Second):
+				return ErrUnavailable
+			}
+			return m.startLocked(config.ChannelID)
+		}
+	}
+	return nil
 }
 func (m *Manager) PlanUDP(target multicast.Target) (multicast.Plan, error) {
 	if !m.catalog.OutputAuthorized(target.ChannelID, "udp") {
@@ -248,7 +290,7 @@ func (m *Manager) StartReviewed(id string, expected uint64) error {
 	if m.store.snapshot().Generation != expected {
 		return ErrConflict
 	}
-	return m.startLocked(id)
+	return m.prepareStartLocked(id)
 }
 func (m *Manager) startLocked(id string) error {
 	if m.closed || m.ctx.Err() != nil {
@@ -303,8 +345,9 @@ func (m *Manager) Stop(id string) error {
 	}
 	current := m.store.snapshot()
 	for i, entry := range current.Channels {
-		if entry.ChannelID == id && entry.Resume {
+		if entry.ChannelID == id && (entry.Resume || !entry.AutoPaused) {
 			current.Channels[i].Resume = false
+			current.Channels[i].AutoPaused = true
 			return m.store.replace(current, current.Generation)
 		}
 	}
@@ -329,12 +372,13 @@ func (m *Manager) Close() {
 	for _, j := range jobs {
 		<-j.done
 	}
+	m.autoWG.Wait()
 }
 func (m *Manager) run(j *job) {
 	defer close(j.done)
 	defer j.cancel()
 	defer func() { j.mu.Lock(); hub := j.hub; j.mu.Unlock(); hub.Close() }()
-	for attempt := 0; attempt < 4; attempt++ {
+	for attempt := 0; ; attempt++ {
 		if j.ctx.Err() != nil {
 			j.setState("stopped", "")
 			return
@@ -344,7 +388,8 @@ func (m *Manager) run(j *job) {
 			return
 		}
 		j.mu.Lock()
-		j.status.Attempts = attempt + 1
+		j.status.Attempts++
+		j.status.NextRetryAt = time.Time{}
 		j.status.State = "starting"
 		j.status.Error = ""
 		j.status.FirstPacketAt = time.Time{}
@@ -353,6 +398,7 @@ func (m *Manager) run(j *job) {
 		j.hub = NewHub()
 		j.mu.Unlock()
 		old.Close()
+		attemptStart := time.Now()
 		e := m.attempt(j)
 		if j.ctx.Err() != nil {
 			j.setState("stopped", "")
@@ -362,12 +408,17 @@ func (m *Manager) run(j *job) {
 			j.setState("unauthorized", "source_grant_revoked")
 			return
 		}
-		if attempt == 3 {
-			j.setState("failed", "source_unavailable_or_invalid_ts")
-			return
+		if time.Since(attemptStart) > 30*time.Second {
+			attempt = 0
 		}
+		delay := m.retryDelay(attempt)
+		j.mu.Lock()
+		j.status.Interruptions++
+		j.status.LastFailureAt = time.Now().UTC()
+		j.status.NextRetryAt = time.Now().UTC().Add(delay)
+		j.mu.Unlock()
 		j.setState("backoff", "source_interrupted")
-		timer := time.NewTimer(time.Duration(1<<attempt) * 500 * time.Millisecond)
+		timer := time.NewTimer(delay)
 		select {
 		case <-j.ctx.Done():
 			timer.Stop()
@@ -382,4 +433,15 @@ func (j *job) setState(state, message string) {
 	j.status.State = state
 	j.status.Error = message
 	j.mu.Unlock()
+}
+
+func recoveryDelay(attempt int) time.Duration {
+	if attempt > 6 {
+		attempt = 6
+	}
+	delay := time.Duration(1<<attempt) * 500 * time.Millisecond
+	if delay > 30*time.Second {
+		return 30 * time.Second
+	}
+	return delay
 }

@@ -19,11 +19,12 @@ type Tools struct {
 	FFprobe string `json:"ffprobe"`
 }
 type ChannelConfig struct {
-	ChannelID string            `json:"channel_id"`
-	Protocol  string            `json:"protocol"`
-	UDP       *multicast.Target `json:"udp,omitempty"`
-	HLS       bool              `json:"hls"`
-	Resume    bool              `json:"resume"`
+	ChannelID  string            `json:"channel_id"`
+	Protocol   string            `json:"protocol"`
+	UDP        *multicast.Target `json:"udp,omitempty"`
+	HLS        bool              `json:"hls"`
+	AutoPaused bool              `json:"auto_paused,omitempty"`
+	Resume     bool              `json:"resume"`
 }
 type Configuration struct {
 	Version    int             `json:"version"`

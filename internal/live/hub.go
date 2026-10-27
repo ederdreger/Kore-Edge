@@ -11,6 +11,7 @@ import (
 )
 
 const chunkBytes = 188 * 7
+const subscriberChunks = 2 * 1024 * 1024 / chunkBytes
 const cacheChunks = 2 * 1024 * 1024 / chunkBytes
 
 var ErrUnavailable = errors.New("live_unavailable")
@@ -102,7 +103,7 @@ func (h *Hub) Subscribe() ([][]byte, <-chan []byte, func(), error) {
 	for index := start; index < end; index++ {
 		replay = append(replay, h.ring[index%len(h.ring)])
 	}
-	subscriber := make(chan []byte, 32)
+	subscriber := make(chan []byte, subscriberChunks)
 	h.subscribers[subscriber] = true
 	var once sync.Once
 	release := func() {

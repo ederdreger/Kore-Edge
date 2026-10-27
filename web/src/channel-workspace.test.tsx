@@ -49,3 +49,40 @@ it('opens configuration immediately and keeps failures inside a retryable dialog
  fireEvent.click(screen.getByLabelText('Conferi o canal, a opera\u00e7\u00e3o e os destinos acima.'));
  expect((screen.getByRole('button',{name:'Salvar prepara\u00e7\u00e3o'}) as HTMLButtonElement).disabled).toBe(false);
 });
+
+it('starts an unconfigured channel directly with no confirmation dialog',async()=>{
+ const request=mount();fireEvent.click(await screen.findByRole('button',{name:'Iniciar Canal sint\u00e9tico'}));
+ await waitFor(()=>expect(request.mock.calls.some(c=>c[0]==='POST')).toBe(true));
+ expect(request.mock.calls.find(c=>c[0]==='POST')?.[2]).toMatchObject({action:'start',channel_id:'synthetic',confirmed:true});
+ expect(screen.queryByRole('dialog')).toBeNull();
+});
+it('shows one stop control per row and allows configuring an active channel',async()=>{
+ const request=mount({...snapshot,streams:[{channel_id:'synthetic',state:'running',metrics:{last_packet_at:new Date().toISOString()},udp_state:'disabled',hls_state:'disabled'}]});
+ fireEvent.click(await screen.findByRole('button',{name:'Configurar Canal sint\u00e9tico'}));await screen.findByRole('dialog');
+ expect(screen.queryByText(/Pare a recep.*antes de alterar/)).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Fechar revis\u00e3o'}));
+ expect(screen.queryByRole('button',{name:'Iniciar Canal sint\u00e9tico'})).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Parar Canal sint\u00e9tico'}));
+ await waitFor(()=>expect(request.mock.calls.find(c=>c[0]==='POST')?.[2]).toMatchObject({action:'stop',channel_id:'synthetic',confirmed:true}));
+ expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+it('never opens an on-demand preview for a stopped partner channel',async()=>{
+ const request=mount();fireEvent.click(await screen.findByRole('button',{name:'Reproduzir Canal sint\u00e9tico'}));
+ await screen.findByText('Inicie a recep\u00e7\u00e3o cont\u00ednua deste canal antes de abrir o player.');
+ expect(request.mock.calls.every(c=>c[0]==='GET')).toBe(true);expect(screen.queryByText(/sob demanda/)).toBeNull();
+});
+
+it('switches between a filterable channel list and mini cards without media actions',async()=>{
+ const request=mount();await screen.findByRole('button',{name:'Configurar Canal sint\u00e9tico'});
+ expect(screen.queryByRole('button',{name:'Testar sinal'})).toBeNull();expect(screen.queryByRole('button',{name:'Recep\u00e7\u00e3o e sa\u00eddas'})).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Mini cards'}));expect(screen.getByRole('button',{name:'Mini cards'}).getAttribute('aria-pressed')).toBe('true');expect(screen.queryByRole('table')).toBeNull();
+ fireEvent.change(screen.getByRole('textbox',{name:'Buscar canal'}),{target:{value:'missing'}});expect(screen.queryByRole('button',{name:'Configurar'})).toBeNull();
+ fireEvent.change(screen.getByRole('textbox',{name:'Buscar canal'}),{target:{value:''}});fireEvent.click(screen.getByRole('button',{name:'Lista'}));expect(screen.getByRole('table')).toBeTruthy();expect(request.mock.calls.every(c=>c[0]==='GET')).toBe(true);
+});
+it('offers authenticated TS and HLS URLs without creating a UDP destination',async()=>{
+ const request=mount();await screen.findByRole('button',{name:'Configurar Canal sint\u00e9tico'});fireEvent.click(screen.getByRole('button',{name:'Sa\u00eddas'}));
+ expect((screen.getByLabelText('Link MPEG-TS (sess\u00e3o autenticada)') as HTMLInputElement).value).toContain('/live/media/synthetic/stream.ts');
+ expect((screen.getByLabelText(/Link HLS/) as HTMLInputElement).value).toContain('/live/hls/synthetic/index.m3u8');
+ expect(screen.getByRole('button',{name:'Configurar destino UDP'})).toBeTruthy();expect(request.mock.calls.every(c=>c[0]==='GET')).toBe(true);
+});

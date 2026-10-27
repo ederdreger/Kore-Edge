@@ -206,6 +206,7 @@ func servePanel(ctx context.Context, ln net.Listener, store *catalog.Store, engi
 		if distribution != nil {
 			defer distribution.Close()
 			distribution.Resume()
+			distribution.RunAutomatic()
 		}
 	}
 	a := &api.API{ManualChannels: direct, Live: distribution, PartnerCatalog: partnerCatalog, WireGuardCredentials: wgCredentials, Mode: mode, Accounts: users, PublicOrigin: origin, Integration: synchronizer, Security: guard, Catalog: store, Streams: engine, HLS: manager, Monitoring: observer, Provision: registry, ProvisionEdgeID: edgeID}
