@@ -57,7 +57,7 @@ func (r *references) add(raw string, from *url.URL) (string, error) {
 	if key == "" {
 		return "", ErrUnavailable
 	}
-	extension := suffix.FindString(ref.Path)
+	extension := suffix.FindString(strings.ToLower(ref.Path))
 	if extension == "" {
 		extension = ".ts"
 	}
@@ -71,6 +71,20 @@ func (r *references) add(raw string, from *url.URL) (string, error) {
 	r.items[key] = ref.String()
 	r.order = append(r.order, key)
 	return r.base + key, nil
+}
+func (r *references) get(key string) string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	target := r.items[key]
+	if target != "" {
+		for i, item := range r.order {
+			if item == key {
+				r.order = append(append(r.order[:i:i], r.order[i+1:]...), key)
+				break
+			}
+		}
+	}
+	return target
 }
 func (r *references) rewrite(data []byte, from *url.URL) ([]byte, error) {
 	if len(data) > 1024*1024 || !bytes.HasPrefix(data, []byte("#EXTM3U")) {
@@ -175,9 +189,7 @@ func (s *Service) openHLS(parent context.Context, c Source, ffmpeg string) (io.R
 		key := strings.TrimPrefix(r.URL.Path, prefix)
 		target := c.URL
 		if key != "index.m3u8" {
-			refs.mu.Lock()
-			target = refs.items[key]
-			refs.mu.Unlock()
+			target = refs.get(key)
 			if target == "" {
 				w.WriteHeader(404)
 				return
@@ -220,8 +232,33 @@ func (s *Service) openHLS(parent context.Context, c Source, ffmpeg string) (io.R
 		_, _ = io.Copy(w, io.LimitReader(response.Body, 32*1024*1024))
 	})
 	go func() { _ = server.Serve(listener) }()
+	// A master playlist must reference media playlists, not another master.
+	// Media-only input instead needs a small master so FFmpeg can reload its URL.
+	first, e := s.openHTTP(ctx, c.URL, "")
+	if e != nil {
+		cancel()
+		server.Close()
+		return nil, ErrUnavailable
+	}
+	document, e := io.ReadAll(io.LimitReader(first.Body, 1024*1024+1))
+	first.Body.Close()
+	if e != nil || len(document) > 1024*1024 || !bytes.HasPrefix(document, []byte("#EXTM3U")) {
+		cancel()
+		server.Close()
+		return nil, ErrInvalid
+	}
+	initial := "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n" + refs.base + "index.m3u8\n"
+	if bytes.Contains(document, []byte("#EXT-X-STREAM-INF:")) {
+		rewritten, err := refs.rewrite(document, root)
+		if err != nil {
+			cancel()
+			server.Close()
+			return nil, err
+		}
+		initial = string(rewritten)
+	}
 	cmd := s.command(ctx, ffmpeg, "-hide_banner", "-loglevel", "quiet", "-nostdin", "-protocol_whitelist", "pipe,http,tcp,crypto", "-format_whitelist", "hls,mpegts,aac,mov", "-allowed_extensions", "ALL", "-analyzeduration", "1000000", "-probesize", "1000000", "-re", "-f", "hls", "-i", "pipe:0", "-map", "0:v:0?", "-map", "0:a:0?", "-c", "copy", "-mpegts_flags", "+resend_headers", "-flush_packets", "1", "-f", "mpegts", "pipe:1")
-	cmd.Stdin = strings.NewReader("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n" + refs.base + "index.m3u8\n")
+	cmd.Stdin = strings.NewReader(initial)
 	if cmd.Stderr == nil {
 		cmd.Stderr = io.Discard
 	}

@@ -222,6 +222,20 @@ func TestHLSReferencesAreBoundedOpaqueSameOriginAndExtensionAware(t *testing.T) 
 	if len(refs.items) != 1024 {
 		t.Fatal("unbounded HLS reference set")
 	}
+	playlist, e := refs.add("variant.m3u8", u)
+	if e != nil {
+		t.Fatal(e)
+	}
+	key := strings.TrimPrefix(playlist, refs.base)
+	for i := 0; i < 1200; i++ {
+		if i%50 == 0 && refs.get(key) == "" {
+			t.Fatal("active media playlist was evicted")
+		}
+		refs.add("segment.ts", u)
+	}
+	if refs.get(key) == "" || len(refs.items) > 1024 {
+		t.Fatal("HLS reload reference lost or cache unbounded")
+	}
 }
 
 type deniedCatalog struct{}
