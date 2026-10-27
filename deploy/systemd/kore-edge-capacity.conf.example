@@ -1,0 +1,11 @@
+# REVIEW ONLY. Copy to kore-edge.service.d/capacity.conf after approval.
+# Profile for the measured test host: 28 logical CPUs, 32 GiB RAM.
+[Service]
+MemoryMax=4G
+TasksMax=512
+CPUQuota=400%
+Environment=GOMAXPROCS=4
+Environment=GOMEMLIMIT=1GiB
+Environment=KORE_EDGE_MAX_CHANNELS=128
+Environment=KORE_EDGE_HLS_INPUTS=40
+Environment=KORE_EDGE_HLS_OUTPUTS=16

@@ -23,7 +23,7 @@ func TestMediaSaturationQueuesWithoutCountingSourceFailure(t *testing.T) {
 	if e = m.Start("synthetic-resource"); e != nil {
 		t.Fatal(e)
 	}
-	waitStatus(t, m, "queued")
+	waitStatus(t, m, "waiting_hls_capacity")
 	status := m.Snapshot().Streams[0]
 	if status.Interruptions != 0 || status.Error != "media_resources_busy" {
 		t.Fatal("resource wait reported as signal drop", status)

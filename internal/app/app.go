@@ -5,10 +5,13 @@ import (
 	"context"
 	"errors"
 	"io"
+	"kore-edge/internal/capacity"
+	"kore-edge/internal/mediaresources"
 	"kore-edge/internal/wireguard"
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -30,6 +33,13 @@ import (
 )
 
 func Run(ctx context.Context, c config.Config) error {
+	limits, capacityErr := capacity.Load(os.Getenv)
+	if capacityErr != nil {
+		return capacityErr
+	}
+	if capacityErr = mediaresources.ConfigureLimits(limits.HLSInputs, limits.HLSOutputs); capacityErr != nil {
+		return capacityErr
+	}
 	if err := c.Validate(); err != nil {
 		return err
 	}
@@ -158,6 +168,11 @@ func serveIntegrated(ctx context.Context, ln net.Listener, store *catalog.Store,
 	return servePanel(ctx, ln, store, engine, manager, registry, edgeID, guard, synchronizer, nil, "", "laboratory", nil)
 }
 func servePanel(ctx context.Context, ln net.Listener, store *catalog.Store, engine *stream.Engine, manager *hls.Manager, registry *provision.Registry, edgeID string, guard *security.Controller, synchronizer *integration.Service, users *accounts.Store, origin, mode string, wgCredentials *wireguard.CredentialStore) error {
+	limits, capacityErr := capacity.Load(os.Getenv)
+	if capacityErr != nil {
+		ln.Close()
+		return capacityErr
+	}
 	if synchronizer != nil {
 		syncCtx, stopSync := context.WithCancel(ctx)
 		syncDone := make(chan struct{})
@@ -203,7 +218,7 @@ func servePanel(ctx context.Context, ln net.Listener, store *catalog.Store, engi
 		}
 	}
 	if sourceCatalog != nil {
-		distribution, _ = live.New(ctx, filepath.Join(users.Directory(), "live"), sourceCatalog)
+		distribution, _ = live.NewWithCapacity(ctx, filepath.Join(users.Directory(), "live"), sourceCatalog, limits.Channels)
 		if distribution != nil {
 			defer distribution.Close()
 			distribution.Resume()

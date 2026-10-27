@@ -128,33 +128,6 @@ func (m *Manager) reconcileAutomatic() {
 		if paused {
 			continue
 		}
-		// Admission is bounded before allocating configs or contacting sources.
-		active := 0
-		for _, j := range m.jobs {
-			select {
-			case <-j.done:
-			default:
-				active++
-			}
-		}
-		if active >= 16 {
-			// Queue a new input for a later free slot, without starting a source.
-			current := m.store.snapshot()
-			found := false
-			for _, entry := range current.Channels {
-				if entry.ChannelID == c.ID {
-					found = true
-					break
-				}
-			}
-			if !found && len(current.Channels) < 512 {
-				if entry, e := m.defaultChannel(c.ID); e == nil {
-					current.Channels = append(current.Channels, entry)
-					_ = m.store.replace(current, current.Generation)
-				}
-			}
-			continue
-		}
 		_ = m.prepareStartLocked(c.ID)
 	}
 }

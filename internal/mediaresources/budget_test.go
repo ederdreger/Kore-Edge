@@ -53,3 +53,28 @@ func TestProcessThreadBudget(t *testing.T) {
 		t.Fatal("remux behavior changed")
 	}
 }
+
+func TestLimitsCannotResizeOccupiedPools(t *testing.T) {
+	if e := ConfigureLimits(3, 4); e != nil {
+		t.Fatal(e)
+	}
+	defer func() {
+		if e := ConfigureLimits(2, 2); e != nil {
+			t.Fatal(e)
+		}
+	}()
+	release, ok := Input()
+	if !ok {
+		t.Fatal("no reservation")
+	}
+	if e := ConfigureLimits(3, 4); e != nil {
+		t.Fatal("idempotent configure", e)
+	}
+	if e := ConfigureLimits(4, 4); e != ErrBusy {
+		t.Fatal("occupied pool resized", e)
+	}
+	release()
+	if e := ConfigureLimits(0, 4); e == nil {
+		t.Fatal("invalid limits accepted")
+	}
+}

@@ -72,6 +72,8 @@ type Manager struct {
 	autoWG       sync.WaitGroup
 	autoOnce     sync.Once
 	closed       bool
+	maxActive    int
+	ingestSlots  chan struct{}
 	previewSlots chan struct{}
 }
 type Snapshot struct {
@@ -83,6 +85,13 @@ type Snapshot struct {
 }
 
 func New(ctx context.Context, directory string, catalog Catalog) (*Manager, error) {
+	return NewWithCapacity(ctx, directory, catalog, 16)
+}
+
+func NewWithCapacity(ctx context.Context, directory string, catalog Catalog, maximum int) (*Manager, error) {
+	if maximum < 1 || maximum > 512 {
+		return nil, ErrInvalid
+	}
 	if catalog == nil {
 		return nil, ErrUnavailable
 	}
@@ -91,7 +100,7 @@ func New(ctx context.Context, directory string, catalog Catalog) (*Manager, erro
 		return nil, e
 	}
 	child, cancel := context.WithCancel(ctx)
-	manager := &Manager{ctx: child, cancel: cancel, store: store, catalog: catalog, jobs: map[string]*job{}, interfaces: multicast.Interfaces, udpOpen: multicast.OpenAuthorized, previewSlots: make(chan struct{}, 32)}
+	manager := &Manager{ctx: child, cancel: cancel, store: store, catalog: catalog, jobs: map[string]*job{}, interfaces: multicast.Interfaces, udpOpen: multicast.OpenAuthorized, maxActive: maximum, ingestSlots: make(chan struct{}, maximum), previewSlots: make(chan struct{}, 32)}
 	manager.retryDelay = recoveryDelay
 	manager.open = func(ctx context.Context, config ChannelConfig, tools Tools) (io.ReadCloser, error) {
 		switch config.Protocol {
@@ -160,7 +169,7 @@ func (m *Manager) Snapshot() Snapshot {
 			streams = append(streams, Status{ChannelID: c.ChannelID, Protocol: c.Protocol, State: state, UDP: "disabled", HLS: "disabled"})
 		}
 	}
-	view := Snapshot{Configuration: configuration, Catalog: m.catalog.Snapshot(), Streams: streams, MaxActive: 16}
+	view := Snapshot{Configuration: configuration, Catalog: m.catalog.Snapshot(), Streams: streams, MaxActive: m.maxActive}
 	if local, ok := m.catalog.(interface{ Revision() uint64 }); ok {
 		view.ManualRevision = local.Revision()
 	}
@@ -314,7 +323,6 @@ func (m *Manager) startLocked(id string) error {
 	if !m.catalog.Authorized(id, selected.Protocol) {
 		return ErrDenied
 	}
-	count := 0
 	for key, j := range m.jobs {
 		select {
 		case <-j.done:
@@ -322,10 +330,9 @@ func (m *Manager) startLocked(id string) error {
 			if key == id {
 				return nil
 			}
-			count++
 		}
 	}
-	if count >= 16 || len(m.jobs) >= 512 && m.jobs[id] == nil {
+	if len(m.jobs) >= 512 && m.jobs[id] == nil {
 		return ErrConflict
 	}
 	child, cancel := context.WithCancel(m.ctx)
@@ -390,6 +397,22 @@ func (m *Manager) run(j *job) {
 			j.setState("unauthorized", "source_grant_revoked")
 			return
 		}
+		select {
+		case m.ingestSlots <- struct{}{}:
+		default:
+			j.setState("waiting_capacity", "reception_capacity")
+			select {
+			case m.ingestSlots <- struct{}{}:
+			case <-j.ctx.Done():
+				j.setState("stopped", "")
+				return
+			}
+		}
+		if j.ctx.Err() != nil {
+			<-m.ingestSlots
+			j.setState("stopped", "")
+			return
+		}
 		j.mu.Lock()
 		j.status.Attempts++
 		j.status.NextRetryAt = time.Time{}
@@ -403,6 +426,7 @@ func (m *Manager) run(j *job) {
 		old.Close()
 		attemptStart := time.Now()
 		e := m.attempt(j)
+		<-m.ingestSlots
 		if j.ctx.Err() != nil {
 			j.setState("stopped", "")
 			return
@@ -427,7 +451,7 @@ func (m *Manager) run(j *job) {
 		j.status.NextRetryAt = time.Now().UTC().Add(delay)
 		j.mu.Unlock()
 		if queued {
-			j.setState("queued", "media_resources_busy")
+			j.setState("waiting_hls_capacity", "media_resources_busy")
 		} else {
 			j.setState("backoff", "source_interrupted")
 		}

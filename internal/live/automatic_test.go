@@ -2,10 +2,13 @@ package live
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"kore-edge/internal/edgecatalog"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 type automaticCatalog struct {
@@ -36,22 +39,15 @@ func TestAutomaticReceptionQueuesAndHonorsPersistentStop(t *testing.T) {
 	c.channels = append(c.channels, edgecatalog.Channel{ID: "local_synthetic", Protocols: []edgecatalog.Protocol{{ID: "http_ts"}}})
 	m.reconcileAutomatic()
 	waitStatus(t, m, "running")
-	if len(m.jobs) != 16 || len(m.Snapshot().Configuration.Channels) != 18 {
+	if len(m.jobs) != 18 || len(m.Snapshot().Configuration.Channels) != 18 {
 		t.Fatal("admission/manual isolation", len(m.jobs), m.Snapshot().Configuration)
 	}
-	queued := 0
-	for _, s := range m.Snapshot().Streams {
-		if s.State == "queued" {
-			queued++
-		}
-	}
-	if queued != 2 {
-		t.Fatal("missing queued channels", queued)
-	}
+	waitReceptionCounts(t, m, 16, 2)
 	if e := m.Stop("auto-00"); e != nil {
 		t.Fatal(e)
 	}
 	m.reconcileAutomatic()
+	waitReceptionCounts(t, m, 16, 1)
 	if m.IsActive("auto-00") || !m.IsActive("auto-16") {
 		t.Fatal("stop overridden or queue not admitted")
 	}
@@ -136,5 +132,60 @@ func TestAutomaticWorkerStartsWithoutBrowserAndCloses(t *testing.T) {
 	m.Close()
 	if m.IsActive("auto-00") {
 		t.Fatal("worker/source survived close")
+	}
+}
+
+func waitReceptionCounts(t *testing.T, m *Manager, receiving, waiting int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		running, queued := 0, 0
+		for _, s := range m.Snapshot().Streams {
+			if s.State == "running" {
+				running++
+			}
+			if s.State == "waiting_capacity" {
+				queued++
+			}
+		}
+		if running == receiving && queued == waiting {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("unexpected reception counts", m.Snapshot().Streams)
+}
+
+func TestFailedSourcesReleaseAdmissionWhileBackingOff(t *testing.T) {
+	m, c, _ := automaticManager(t, 18)
+	m.maxActive = 1
+	m.ingestSlots = make(chan struct{}, 1)
+	m.retryDelay = func(int) time.Duration { return time.Minute }
+	m.open = func(ctx context.Context, config ChannelConfig, tools Tools) (io.ReadCloser, error) {
+		if config.ChannelID != "auto-17" {
+			return nil, errors.New("synthetic unavailable")
+		}
+		return c.OpenHTTP(ctx, config.ChannelID)
+	}
+	m.reconcileAutomatic()
+	waitStatus(t, m, "running")
+	for _, s := range m.Snapshot().Streams {
+		if s.State == "running" && s.ChannelID != "auto-17" {
+			t.Fatal("unexpected source")
+		}
+	}
+	if c.opens.Load() != 1 {
+		t.Fatal("healthy source blocked", c.opens.Load())
+	}
+}
+
+func TestReviewedCapacityReceives113SyntheticChannels(t *testing.T) {
+	m, _, _ := automaticManager(t, 113)
+	m.maxActive = 128
+	m.ingestSlots = make(chan struct{}, 128)
+	m.reconcileAutomatic()
+	waitReceptionCounts(t, m, 113, 0)
+	if m.Snapshot().MaxActive != 128 {
+		t.Fatal("capacity not exposed")
 	}
 }
