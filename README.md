@@ -408,3 +408,10 @@ Os valores padrão conservadores continuam 16 recepções, 2 entradas HLS e 2 sa
 ### Diagnostico de quedas de recepcao
 
 A aba Qualidade mostra o motivo seguro da ultima falha: prazo da matriz, falta de pacotes, abertura/leitura, encerramento remoto, transporte invalido ou falha de saida. O core emite contagens agregadas por protocolo/motivo, limitadas a uma publicacao a cada 30 segundos, sem nomes de canais, URLs ou credenciais. A espera por headers da matriz e de 8 segundos: a matriz permite ate 5 segundos para abrir uma origem, portanto o limite anterior de 3 segundos podia cancelar uma abertura ainda valida. Nao existe prazo total para encerrar uma recepcao saudavel; cancelamento e monitor de ausencia de pacotes continuam ativos.
+
+
+## Menu Mídia
+
+**Mídia** (`#media`) abre a lista compacta de transmissões em português, com fundo azul-acinzentado claro, linhas zebradas e cabeçalho fixo. Busca, filtros de estado, ordenação, paginação e visualização em cartões usam o catálogo real existente. As abas visíveis são **Transmissões** e **Fontes**. Modelos, multiplexadores, VOD e placas DVB permanecem ocultos nesta entrega.
+
+Administradores podem adicionar uma origem, iniciar/parar, reconectar, operar seleções e consultar links permanentes; espectadores têm leitura e reprodução de recepções já ativas. A página reutiliza as APIs atuais, sem novos serviços ou transcodificação. Gravação aparece como indisponível. O tráfego de saída não medido é indicado explicitamente. Veja [funcionamento e aceite](docs/MIDIA.md).
