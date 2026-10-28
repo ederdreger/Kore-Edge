@@ -11,7 +11,7 @@ import {WireGuardWorkspace} from './wireguard-workspace';
 import type { Channel, Diagnostics, Point, ViewData } from './types';
 type Route = 'media' | 'dashboard' | 'channels' | 'wireguard' | 'system' | 'monitoring' | 'logs' | 'settings' | 'updates' | 'users';
 const routeNames: Record<Route, string> = { media: 'Mídia', dashboard: 'Dashboard', channels: 'Canais', wireguard: 'WireGuard', system: 'Sistema', monitoring: 'Monitoramento', logs: 'Logs', settings: 'Configurações', users: 'Usu\u00e1rios', updates: 'Atualizações' };
-const route = (): Route => { const key = typeof window === 'undefined' ? '' : window.location.hash.slice(1); if(key==='udp'||key==='hls')return 'channels'; return key in routeNames ? key as Route : 'dashboard'; };
+const route = (): Route => { const key = typeof window === 'undefined' ? '' : window.location.hash.slice(1).split('/')[0]; if(key==='udp'||key==='hls')return 'channels'; return key in routeNames ? key as Route : 'dashboard'; };
 function useEdge() {
     const [data, setData] = useState<ViewData>(() => adapt({}));
     const [loading, setLoading] = useState(true);

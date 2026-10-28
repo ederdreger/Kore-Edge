@@ -415,3 +415,10 @@ A aba Qualidade mostra o motivo seguro da ultima falha: prazo da matriz, falta d
 **Mídia** (`#media`) abre a lista compacta de transmissões em português, com fundo azul-acinzentado claro, linhas zebradas e cabeçalho fixo. Busca, filtros de estado, ordenação, paginação e visualização em cartões usam o catálogo real existente. As abas visíveis são **Transmissões** e **Fontes**. Modelos, multiplexadores, VOD e placas DVB permanecem ocultos nesta entrega.
 
 Administradores podem adicionar uma origem, iniciar/parar, reconectar, operar seleções e consultar links permanentes; espectadores têm leitura e reprodução de recepções já ativas. A página reutiliza as APIs atuais, sem novos serviços ou transcodificação. Gravação aparece como indisponível. O tráfego de saída não medido é indicado explicitamente. Veja [funcionamento e aceite](docs/MIDIA.md).
+
+
+### Novo canal e pagina individual
+
+Em **Midia**, o botao **+** abre o formulario de **Nome do canal** e **URL da origem**. Salvar cria o cadastro pela API atual, solicita recepcao continua e abre a pagina individual em **Visao geral**. Nomes da lista tambem abrem essa pagina. **Entrada** consulta a origem protegida; **Saidas** mostra os links permanentes e o estado do UDP. As abas adicionais do canal ficam desabilitadas ate suas proximas etapas.
+
+Nome, titulo e descricao de canais locais podem ser salvos durante a recepcao, sem trocar a URL, parar o canal ou renovar os links. A apresentacao fica em arquivo privado separado, mantendo a compatibilidade do arquivo de origens. Veja [fluxo, limites e aceite](docs/MIDIA-CANAL.md).

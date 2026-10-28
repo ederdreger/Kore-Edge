@@ -39,6 +39,11 @@ func (a *API) manualChannels(w http.ResponseWriter, r *http.Request) {
 		Revision  uint64                `json:"revision"`
 		Source    manualchannels.Source `json:"source"`
 		Confirmed bool                  `json:"confirmed"`
+		Metadata  struct {
+			Name        string `json:"name"`
+			Title       string `json:"title"`
+			Description string `json:"description"`
+		} `json:"metadata"`
 	}
 	if !setupBody(r, &input) {
 		w.WriteHeader(400)
@@ -47,6 +52,17 @@ func (a *API) manualChannels(w http.ResponseWriter, r *http.Request) {
 	var result any
 	var e error
 	switch input.Action {
+	case "metadata":
+		if !input.Confirmed {
+			w.WriteHeader(400)
+			return
+		}
+		e = a.Accounts.ChannelChange(actor, "manual_channel_metadata", func() error {
+			return a.ManualChannels.SaveMetadata(input.Source.ID, input.Metadata.Name, input.Metadata.Title, input.Metadata.Description, input.Revision)
+		})
+		if e == nil {
+			result = a.ManualChannels.Inventory()
+		}
 	case "detect":
 		result, e = manualchannels.Detect(input.Source.URL, input.Source.Protocol)
 	case "probe":
@@ -147,9 +163,15 @@ func (a *API) manualChannels(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(e, manualchannels.ErrInvalid):
 			code = 400
 			message = "Use um link HTTP MPEG-TS, HLS, UDP MPEG-TS ou SRT caller válido. Em UDP, confirme interface, IP local e porta; em SRT, a latência do link é em microssegundos."
+			if input.Action == "metadata" {
+				message = "Nome, título ou descrição inválidos ou acima do limite permitido."
+			}
 		case errors.Is(e, manualchannels.ErrConflict) || errors.Is(e, live.ErrConflict):
 			code = 409
 			message = "O cadastro mudou ou o canal está ativo. Atualize e pare a recepção antes de editar ou excluir."
+			if input.Action == "metadata" {
+				message = "A descrição ou o cadastro mudou. Recarregue os dados antes de salvar novamente."
+			}
 		case errors.Is(e, accounts.ErrRejected) || errors.Is(e, manualchannels.ErrDenied):
 			code = 403
 			message = "Sessão ou destino não autorizado. Não são aceitos loopback, metadados, redirecionamentos ou referências HLS externas."
