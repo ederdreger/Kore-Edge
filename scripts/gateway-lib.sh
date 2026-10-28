@@ -154,6 +154,20 @@ render_legacy_panel_gateway() {
     -e 's/client_max_body_size 1k;/client_max_body_size 64k;/'
 }
 
+# Exact historical session gateway, before media ingest routes/body-limit changes.
+# Used only for update recognition; never installs a legacy configuration.
+render_pre_media_panel_gateway() {
+ render_legacy_panel_gateway "$@" | sed 's/client_max_body_size 64k;/client_max_body_size 16k;/' | awk '
+ /^[[:space:]]*server \{/ {
+  print "  map $uri $kore_frame_options {"
+  print "    default DENY;"
+  print "    ~^/api/v1/playback/[A-Za-z0-9_.-]+/[A-Za-z0-9_-]+/(embed[.]html|embed[.]js|hls[.]js)$ \"\";"
+  print "  }"
+ }
+ {gsub(/add_header X-Frame-Options DENY always;/,"add_header X-Frame-Options $kore_frame_options always;");print}
+ '
+}
+
 # Only capability-protected embed documents may be framed. The dashboard keeps DENY.
 render_panel_gateway() {
  render_legacy_panel_gateway "$@" | awk '

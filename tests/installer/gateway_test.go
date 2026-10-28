@@ -504,6 +504,28 @@ func TestPanelGatewayKeepsOriginAndAllowsAccountRequests(t *testing.T) {
 		}
 	}
 }
+func TestPreMediaPanelRendererRecognizesOnlyHistoricalRoutes(t *testing.T) {
+	command := exec.Command(bash(t), "-c", `source ../../scripts/gateway-lib.sh; render_pre_media_panel_gateway panel.example.com 8443 127.0.0.1:18080 0`)
+	out, e := command.Output()
+	if e != nil {
+		t.Fatal(e)
+	}
+	s := string(out)
+	for _, required := range []string{"client_max_body_size 16k;", "map $uri $kore_frame_options", "default DENY;", "proxy_set_header Host \"127.0.0.1:18080\""} {
+		if !strings.Contains(s, required) {
+			t.Fatal("historical gateway mismatch", required)
+		}
+	}
+	for _, forbidden := range []string{"/(publish|cluster)/", "manual-channels/assets", "client_max_body_size 64k;"} {
+		if strings.Contains(s, forbidden) {
+			t.Fatal("new route in historical gateway", forbidden)
+		}
+	}
+	script, e := os.ReadFile("../../scripts/update-panel.sh")
+	if e != nil || !strings.Contains(string(script), `"$work/previous-embedded-panel") "$work/actual"`) {
+		t.Fatal("historical configuration must be compared exactly")
+	}
+}
 func TestPanelUpdateAndRecoveryArePlanByDefault(t *testing.T) {
 	for _, script := range []string{"update-panel.sh", "reset-admin.sh"} {
 		command := exec.Command(bash(t), "../../scripts/"+script, "--plan")
