@@ -123,7 +123,7 @@ func (m *Manager) attempt(j *job) (attemptError error) {
 	reader := io.MultiReader(bytes.NewReader(initial[offset:]), input)
 	sample := make([]byte, 0, 2*1024*1024)
 	hlsPending := j.config.HLS
-	sampleStart := attemptStart
+	var sampleStart time.Time
 	lastHLSAttempt := attemptStart
 	packet := make([]byte, 188)
 	for {
@@ -139,7 +139,11 @@ func (m *Manager) attempt(j *job) (attemptError error) {
 		j.mu.Lock()
 		hub := j.hub
 		udp, segmenter := j.udp, j.hlsOutput
-		retryHLS := j.config.HLS && j.hlsOutput == nil && !j.hlsStarting && j.status.HLS == "waiting_resources"
+		retryHLS := j.config.HLS && j.hlsOutput == nil && !j.hlsStarting && (j.status.HLS == "waiting_resources" || j.status.HLS == "codec_or_tools_unavailable")
+		retryDelay := 2 * time.Second
+		if j.status.HLS == "codec_or_tools_unavailable" {
+			retryDelay = 15 * time.Second
+		}
 		if j.status.FirstPacketAt.IsZero() {
 			now := time.Now().UTC()
 			elapsed := now.Sub(attemptStart).Milliseconds()
@@ -181,12 +185,15 @@ func (m *Manager) attempt(j *job) (attemptError error) {
 				return errHLSOutput
 			}
 		}
-		if retryHLS && !hlsPending && time.Since(lastHLSAttempt) > 2*time.Second {
+		if retryHLS && !hlsPending && time.Since(lastHLSAttempt) > retryDelay {
 			hlsPending = true
 			sample = nil
-			sampleStart = time.Now()
+			sampleStart = time.Time{}
 		}
 		if hlsPending {
+			if sampleStart.IsZero() {
+				sampleStart = time.Now()
+			}
 			if len(sample) < 2*1024*1024 {
 				sample = append(sample, packet...)
 			}
