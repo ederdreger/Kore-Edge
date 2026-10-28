@@ -25,6 +25,18 @@ func TestMediaInfoUsesMeasuredFieldsOnly(t *testing.T) {
 	}
 }
 
+func TestSampleContinuityObservesDamagedInput(t *testing.T) {
+	first, second, third := packet(), packet(), packet()
+	first[3], second[3], third[3] = 0x10, 0x12, 0x13
+	third[1] |= 0x80
+	data := append(append(first, second...), third...)
+	info := &MediaInfo{}
+	sampleTransport(info, data)
+	if info.ContinuityErrors != 1 || info.TransportErrors != 1 {
+		t.Fatalf("missing transport damage: %+v", info)
+	}
+}
+
 func TestMediaSamplingPreservesBytesAndReleasesEarlyClose(t *testing.T) {
 	before := len(mediaProbeSlots)
 	data := bytes.Repeat([]byte{0x47, 1, 2, 3}, 200)

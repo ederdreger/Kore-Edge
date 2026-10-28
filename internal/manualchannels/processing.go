@@ -53,13 +53,14 @@ type InputView struct {
 	LocalIP   string `json:"local_ip"`
 }
 type ProcessingView struct {
-	Revision    uint64      `json:"revision"`
-	Inputs      []InputView `json:"inputs"`
-	Transcode   Transcode   `json:"transcode"`
-	ActiveKey   string      `json:"active_key"`
-	Local       bool        `json:"local"`
-	InputMedia  *MediaInfo  `json:"input_media,omitempty"`
-	OutputMedia *MediaInfo  `json:"output_media,omitempty"`
+	Revision    uint64         `json:"revision"`
+	Inputs      []InputView    `json:"inputs"`
+	Transcode   Transcode      `json:"transcode"`
+	ActiveKey   string         `json:"active_key"`
+	Local       bool           `json:"local"`
+	InputSRT    *SRTMediaStats `json:"input_srt,omitempty"`
+	InputMedia  *MediaInfo     `json:"input_media,omitempty"`
+	OutputMedia *MediaInfo     `json:"output_media,omitempty"`
 }
 
 var processingID = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,80}$`)
@@ -142,6 +143,9 @@ func (s *Service) Processing(id string) (ProcessingView, error) {
 	out := ProcessingView{Revision: s.revisionLocked(), Inputs: []InputView{}, Transcode: p.Transcode, ActiveKey: s.activeInput[id], Local: ok}
 	if media := s.mediaInfo[id]; media != nil {
 		out.InputMedia, out.OutputMedia = media.input, media.output
+		if media.srt != nil {
+			out.InputSRT = media.srt()
+		}
 	}
 	for _, in := range p.Inputs {
 		u, _ := parse(in.URL)
@@ -335,7 +339,7 @@ func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg,
 	if reader == nil {
 		return nil, true, ErrUnavailable
 	}
-	media := &pipelineMedia{}
+	media := &pipelineMedia{srt: srtMediaStats(reader)}
 	s.mu.Lock()
 	if s.mediaInfo == nil {
 		s.mediaInfo = map[string]*pipelineMedia{}

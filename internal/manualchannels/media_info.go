@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	srt "github.com/datarhei/gosrt"
 	"io"
 	"kore-edge/internal/mediaresources"
+	"kore-edge/internal/tsmetrics"
 	"os/exec"
 	"regexp"
 	"sync"
@@ -14,13 +16,58 @@ import (
 
 // MediaInfo describes sampled bytes, never the requested encoder settings.
 type MediaInfo struct {
-	Video      string    `json:"video,omitempty"`
-	Audio      string    `json:"audio,omitempty"`
-	Width      int       `json:"width,omitempty"`
-	Height     int       `json:"height,omitempty"`
-	MeasuredAt time.Time `json:"measured_at"`
+	ContinuityErrors uint64    `json:"continuity_errors"`
+	TransportErrors  uint64    `json:"transport_errors"`
+	Video            string    `json:"video,omitempty"`
+	Audio            string    `json:"audio,omitempty"`
+	Width            int       `json:"width,omitempty"`
+	Height           int       `json:"height,omitempty"`
+	MeasuredAt       time.Time `json:"measured_at"`
 }
-type pipelineMedia struct{ input, output *MediaInfo }
+type SRTMediaStats struct {
+	Received      uint64  `json:"received"`
+	Missing       uint64  `json:"missing"`
+	Retransmitted uint64  `json:"retransmitted"`
+	Dropped       uint64  `json:"dropped"`
+	Undecryptable uint64  `json:"undecryptable"`
+	RTTMS         float64 `json:"rtt_ms"`
+	LatencyMS     uint64  `json:"latency_ms"`
+}
+type pipelineMedia struct {
+	input, output *MediaInfo
+	srt           func() *SRTMediaStats
+}
+
+func srtMediaStats(reader io.ReadCloser) func() *SRTMediaStats {
+	if wrapper, ok := reader.(*cancelReader); ok {
+		reader = wrapper.ReadCloser
+	}
+	connection, ok := reader.(interface{ Stats(*srt.Statistics) })
+	if !ok {
+		return nil
+	}
+	return func() *SRTMediaStats {
+		var stats srt.Statistics
+		connection.Stats(&stats)
+		a := stats.Accumulated
+		return &SRTMediaStats{Received: a.PktRecv, Missing: a.PktRecvLoss, Retransmitted: a.PktRecvRetrans, Dropped: a.PktRecvDrop, Undecryptable: a.PktRecvUndecrypt, RTTMS: stats.Instantaneous.MsRTT, LatencyMS: stats.Instantaneous.MsRecvTsbPdDelay}
+	}
+}
+func sampleTransport(info *MediaInfo, sample []byte) {
+	now := time.Now().UTC()
+	analyzer := tsmetrics.New(now)
+	for offset := 0; offset+188 <= len(sample); {
+		if sample[offset] != 0x47 {
+			offset++
+			continue
+		}
+		analyzer.Observe(sample[offset:offset+188], now)
+		offset += 188
+	}
+	stats := analyzer.Snapshot()
+	info.ContinuityErrors = stats.CCErrors
+	info.TransportErrors = stats.TEI
+}
 
 // Bound both retained samples and ffprobe processes independently of channels.
 var mediaProbeSlots = make(chan struct{}, 2)
@@ -128,6 +175,7 @@ func (r *mediaObserver) Read(p []byte) (int, error) {
 			cmd.Stdout = out
 			if cmd.Run() == nil && runCtx.Err() == nil {
 				if info := decodeMedia(out.Bytes()); info != nil {
+					sampleTransport(info, sample)
 					r.record(info)
 				}
 			}
