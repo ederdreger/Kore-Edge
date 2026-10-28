@@ -11,9 +11,9 @@
 
 O tema continua azul-acinzentado claro, com descricao no topo, player a esquerda e informacoes/grafico a direita em telas grandes. Nome, titulo e descricao possuem salvamento proprio, sem parar recepcao. O player so abre por acao explicita e reutiliza o ingest existente; nao cria outra conexao com a origem. Os controles iniciam/param e reconectam somente o canal selecionado. O modo e continuo. A saida HLS so pode ser reproduzida quando autorizada e pronta.
 
-O grafico contem apenas amostras observadas desde a abertura, limitadas a 120. Entrada e conexoes TS possuem escalas independentes. Ausencia de taxa cria lacuna, nao um valor simulado. Taxa de saida, codecs e resolucao ainda nao medidos aparecem como tais. Nao ha transcodificacao ou dados extraidos das imagens.
+O grafico contem apenas amostras observadas desde a abertura, limitadas a 120. Entrada e conexoes TS possuem escalas independentes. Ausencia de taxa cria lacuna, nao um valor simulado. Taxa de saida, codecs e resolucao ainda nao medidos aparecem como tais. O processamento e explicitamente configurado na aba Transcodificacao, com copia como padrao. Nao ha dados simulados extraidos das imagens.
 
-Entrada apresenta protocolo, endereco sanitizado e parametros UDP disponiveis. Saidas reutiliza os links permanentes TS/HLS e mostra o destino UDP ja configurado. Configuracao avancada de entrada, transcodificacao, gravacao, EPG, autenticacao por canal e sessoes sera detalhada nas proximas etapas; suas abas adicionais estao explicitamente desabilitadas. Nao ha modelos, DASH, gravacao ou incorporacao publica ficticios.
+Entrada permite ordenar multiplas origens locais protegidas e trocar automaticamente apos falha. Saidas reutiliza os links permanentes TS/HLS e mostra o destino UDP ja configurado. Entrada e Transcodificacao possuem configuracao nesta etapa; gravacao, EPG, autenticacao por canal e sessoes permanecem desabilitadas para as proximas etapas. Consulte [entradas e processamento](MIDIA-ENTRADAS-TRANSCODIFICACAO.md). Nao ha modelos, DASH, gravacao ou incorporacao publica ficticios.
 
 Excluir canal exige confirmacao explicita. A recepcao ativa e parada antes da exclusao; se a exclusao falhar, a mensagem informa a parada. A API existente invalida os links permanentes. Canais da matriz permanecem gerenciados nela; espectadores nao podem cadastrar, editar metadados ou excluir.
 

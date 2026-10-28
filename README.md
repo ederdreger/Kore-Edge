@@ -422,3 +422,9 @@ Administradores podem adicionar uma origem, iniciar/parar, reconectar, operar se
 Em **Midia**, o botao **+** abre o formulario de **Nome do canal** e **URL da origem**. Salvar cria o cadastro pela API atual, solicita recepcao continua e abre a pagina individual em **Visao geral**. Nomes da lista tambem abrem essa pagina. **Entrada** consulta a origem protegida; **Saidas** mostra os links permanentes e o estado do UDP. As abas adicionais do canal ficam desabilitadas ate suas proximas etapas.
 
 Nome, titulo e descricao de canais locais podem ser salvos durante a recepcao, sem trocar a URL, parar o canal ou renovar os links. A apresentacao fica em arquivo privado separado, mantendo a compatibilidade do arquivo de origens. Veja [fluxo, limites e aceite](docs/MIDIA-CANAL.md).
+
+### Entradas de reserva e transcodificação
+
+Em **Mídia ? canal**, o player permanece dentro da **Visão geral**. **Entrada** permite até oito URLs locais ordenadas, com detecção de protocolo e troca após falha, recebendo uma origem por vez. **Transcodificação** mantém **Transmitir sem transcodificar** como padrão; habilitar H.264 por CPU, NVIDIA ou VAAPI exige escolha explícita e codificação sintética bem-sucedida no dispositivo. Entradas importadas continuam administradas pelo Kore Play.
+
+Salvar reinicia somente o canal alterado que já estava recebendo; canais pausados permanecem parados e os links permanentes são preservados. O painel não instala drivers nem muda acesso a GPU, rede ou serviços. Há limite independente de dois codificadores simultâneos. Veja [uso, limites, API e aceite](docs/MIDIA-ENTRADAS-TRANSCODIFICACAO.md).

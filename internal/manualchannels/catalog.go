@@ -21,16 +21,21 @@ type Catalog interface {
 }
 type Service struct {
 	protected
-	directory    string
-	data         state
-	presentation presentationState
-	fallback     Catalog
-	client       *http.Client
-	lookup       func(context.Context, string) ([]net.IPAddr, error)
-	interfaces   func() ([]multicast.Interface, error)
-	slots        chan struct{}
-	dialSRT      func(string, string, srt.Config) (srt.Conn, error)
-	command      func(context.Context, string, ...string) *exec.Cmd
+	directory      string
+	data           state
+	presentation   presentationState
+	processing     processingState
+	nextInput      map[string]int
+	activeInput    map[string]string
+	encoders       encoderCache
+	transcodeSlots chan struct{}
+	fallback       Catalog
+	client         *http.Client
+	lookup         func(context.Context, string) ([]net.IPAddr, error)
+	interfaces     func() ([]multicast.Interface, error)
+	slots          chan struct{}
+	dialSRT        func(string, string, srt.Config) (srt.Conn, error)
+	command        func(context.Context, string, ...string) *exec.Cmd
 }
 
 func (s *Service) Close() { s.client.CloseIdleConnections() }

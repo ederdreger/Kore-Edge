@@ -4,12 +4,14 @@ package mediaresources
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"sync"
 )
 
 var ErrBusy = errors.New("media_resources_busy")
+var ErrTranscodeBusy = fmt.Errorf("transcode_capacity: %w", ErrBusy)
 var poolMu sync.Mutex
 
 var inputs = make(chan struct{}, 2)

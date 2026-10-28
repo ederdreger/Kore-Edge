@@ -106,6 +106,23 @@ func TestManualChannelsSessionCSRFRevisionAndSecretBoundary(t *testing.T) {
 	if w = call("POST", "/api/v1/manual-channels", metadata, csrf); w.Code != 409 {
 		t.Fatal("stale metadata overwrite", w.Code)
 	}
+	profilePath := "/api/v1/manual-channels/processing?id=" + value.ChannelID
+	if w = call("GET", profilePath, nil, ""); w.Code != 200 || bytes.Contains(w.Body.Bytes(), []byte("synthetic-password")) {
+		t.Fatal("profile read or secret boundary", w.Code)
+	}
+	inputs := map[string]any{"action": "inputs", "revision": 2, "confirmed": true, "source": map[string]any{"id": value.ChannelID}, "inputs": []map[string]any{{"key": "primary", "protocol": "http_ts"}, {"url": "https://backup.example/synthetic.ts", "protocol": "http_ts"}}}
+	if w = call("POST", "/api/v1/manual-channels", inputs, ""); w.Code != 403 {
+		t.Fatal("inputs bypassed CSRF", w.Code)
+	}
+	if w = call("POST", "/api/v1/manual-channels", inputs, csrf); w.Code != 200 {
+		t.Fatal("active input configuration failed", w.Code, w.Body.String())
+	}
+	if !manager.IsActive(value.ChannelID) || manager.Snapshot().Configuration.Generation != generation+1 {
+		t.Fatal("selected channel was not restarted")
+	}
+	if w = call("POST", "/api/v1/manual-channels", inputs, csrf); w.Code != 409 {
+		t.Fatal("stale inputs accepted", w.Code)
+	}
 	for _, path := range []string{"/api/v1/manual-channels", "/api/v1/live"} {
 		w = call("GET", path, nil, "")
 		if w.Code != 200 || bytes.Contains(w.Body.Bytes(), []byte("synthetic-password")) || bytes.Contains(w.Body.Bytes(), []byte("synthetic-token")) {
@@ -121,10 +138,25 @@ func TestManualChannelsSessionCSRFRevisionAndSecretBoundary(t *testing.T) {
 	if w = call("POST", "/api/v1/live/action", map[string]any{"action": "stop", "channel_id": value.ChannelID, "confirmed": true}, csrf); w.Code != 200 {
 		t.Fatal("stop without repeated password", w.Code)
 	}
+	paused := manager.Snapshot().Configuration.Channels[0]
+	copyMode := map[string]any{"action": "transcode", "revision": 3, "confirmed": true, "source": map[string]any{"id": value.ChannelID}, "transcode": map[string]any{"mode": "copy"}}
+	if w = call("POST", "/api/v1/manual-channels", copyMode, csrf); w.Code != 200 {
+		t.Fatal("copy configuration failed", w.Code, w.Body.String())
+	}
+	after := manager.Snapshot().Configuration.Channels[0]
+	if manager.IsActive(value.ChannelID) || after.Resume != paused.Resume || after.AutoPaused != paused.AutoPaused {
+		t.Fatal("processing resumed a manually paused channel")
+	}
 	if w = call("POST", "/api/v1/users", map[string]any{"username": "reader", "password": password, "role": "viewer", "current_password": password}, csrf); w.Code != 204 {
 		t.Fatal("viewer creation", w.Code)
 	}
 	login("reader")
+	if w = call("GET", profilePath, nil, ""); w.Code != 403 {
+		t.Fatal("viewer read protected profile", w.Code)
+	}
+	if w = call("POST", "/api/v1/manual-channels", copyMode, csrf); w.Code != 403 {
+		t.Fatal("viewer changed processing", w.Code)
+	}
 	if w = call("POST", "/api/v1/manual-channels", metadata, csrf); w.Code != 403 {
 		t.Fatal("viewer metadata accepted", w.Code)
 	}
@@ -139,7 +171,7 @@ func TestManualChannelsSessionCSRFRevisionAndSecretBoundary(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if w = call("POST", "/api/v1/manual-channels", map[string]any{"action": "delete", "revision": 2, "confirmed": true, "source": map[string]any{"id": value.ChannelID}}, csrf); w.Code != 200 {
+	if w = call("POST", "/api/v1/manual-channels", map[string]any{"action": "delete", "revision": 3, "confirmed": true, "source": map[string]any{"id": value.ChannelID}}, csrf); w.Code != 200 {
 		t.Fatal("delete", w.Code)
 	}
 	if _, e := outputLinks.Verify(oldLink, value.ChannelID, false); e == nil {

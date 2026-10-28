@@ -1,7 +1,11 @@
 import {expect,it} from 'vitest';
-import {mediaRows,mediaState,filterMedia,mediaRate} from './media-model';
+import {mediaRows,mediaState,filterMedia,mediaRate,receptionRequested} from './media-model';
 import type {LiveChannel,LiveStream} from './live-distribution';
 const channels:LiveChannel[]=[{id:'one',name:'Canal 10',category:'Notícias',protocols:[{id:'hls',label:'HLS',path:'/synthetic'}]},{id:'two',name:'Canal 2',category:'Música',protocols:[]}];
+it('keeps a channel waiting for its encoder stoppable without claiming it is receiving',()=>{
+ const row=mediaRows(channels,[],[{channel_id:'one',state:'waiting_transcode_capacity',metrics:{last_packet_at:''}} as LiveStream])[0];
+ expect(receptionRequested(row)).toBe(true);expect(mediaState(row)).toBe('waiting');
+});
 it('distinguishes a fresh stream, stale reception, deliberate stop and denied grant',()=>{
  const now=Date.now(),stream={channel_id:'one',state:'running',metrics:{last_packet_at:new Date(now).toISOString()}} as LiveStream;
  const row=mediaRows(channels,[],[stream])[0];

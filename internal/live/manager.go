@@ -107,6 +107,13 @@ func NewWithCapacity(ctx context.Context, directory string, catalog Catalog, max
 	manager := &Manager{ctx: child, cancel: cancel, store: store, catalog: catalog, jobs: map[string]*job{}, interfaces: multicast.Interfaces, udpOpen: multicast.OpenAuthorized, maxActive: maximum, ingestSlots: make(chan struct{}, maximum), previewSlots: make(chan struct{}, 32)}
 	manager.retryDelay = recoveryDelay
 	manager.open = func(ctx context.Context, config ChannelConfig, tools Tools) (io.ReadCloser, error) {
+		if configured, ok := catalog.(interface {
+			OpenConfigured(context.Context, string, string, string) (io.ReadCloser, bool, error)
+		}); ok {
+			if input, handled, err := configured.OpenConfigured(ctx, config.ChannelID, config.Protocol, tools.FFmpeg); handled {
+				return input, err
+			}
+		}
 		switch config.Protocol {
 		case "http_ts":
 			return catalog.OpenHTTP(ctx, config.ChannelID)
@@ -456,7 +463,11 @@ func (m *Manager) run(j *job) {
 		j.status.NextRetryAt = time.Now().UTC().Add(delay)
 		j.mu.Unlock()
 		if queued {
-			j.setState("waiting_hls_capacity", "media_resources_busy")
+			if errors.Is(e, mediaresources.ErrTranscodeBusy) {
+				j.setState("waiting_transcode_capacity", "media_resources_busy")
+			} else {
+				j.setState("waiting_hls_capacity", "media_resources_busy")
+			}
 		} else {
 			j.setState("backoff", "source_interrupted")
 			m.recordFailure(j.config.Protocol, failureReason(e))

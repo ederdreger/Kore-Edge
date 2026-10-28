@@ -41,7 +41,9 @@ func (s *Service) loadPresentation() error {
 	}
 	return nil
 }
-func (s *Service) revisionLocked() uint64 { return s.data.Revision + s.presentation.Revision }
+func (s *Service) revisionLocked() uint64 {
+	return s.data.Revision + s.presentation.Revision + s.processing.Revision
+}
 func (s *Service) displayName(source Source) string {
 	if p, ok := s.presentation.Entries[source.ID]; ok && p.BaseName == source.Name {
 		return p.Name
