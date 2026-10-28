@@ -366,6 +366,14 @@ O player TS continuo aguarda seis segundos de buffer antes de iniciar e preserva
 essa margem sem saltos automaticos para a borda ao vivo. Isso acrescenta atraso
 ao inicio; nao corrige indisponibilidade da origem.
 
+A visao geral usa o protocolo da entrada ativa e mede codecs/resolucao antes e
+depois do processamento dos canais locais (ou com perfil configurado). Sao amostras reais,
+sem abrir outra origem: ate dois probes simultaneos, 1 MiB por amostra, prazo
+de seis segundos. Medicoes indisponiveis ou canais parados sao identificados.
+Entradas SRT mostram descartes, retransmissoes, RTT e latencia da conexao real.
+A amostra TS informa erros de continuidade e TEI antes/depois do processamento.
+O player ocupa a mesma caixa 16:9 aberto, fechado ou durante carregamento.
+
 ### Orçamento de processos de mídia
 
 O agente usa, por padrão, duas CPUs lógicas para o runtime Go, limite suave de

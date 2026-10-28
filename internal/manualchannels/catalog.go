@@ -27,6 +27,7 @@ type Service struct {
 	processing     processingState
 	nextInput      map[string]int
 	activeInput    map[string]string
+	mediaInfo      map[string]*pipelineMedia
 	encoders       encoderCache
 	transcodeSlots chan struct{}
 	fallback       Catalog

@@ -171,6 +171,7 @@ func (s *Service) Delete(id string, expected uint64) error {
 		return e
 	}
 	s.data = next
+	delete(s.mediaInfo, id)
 	return nil
 }
 func (s *Service) persist(next state) error { return s.persistFile("channels.json", next) }
