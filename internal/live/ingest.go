@@ -139,7 +139,7 @@ func (m *Manager) attempt(j *job) (attemptError error) {
 		j.mu.Lock()
 		hub := j.hub
 		udp, segmenter := j.udp, j.hlsOutput
-		retryHLS := j.config.HLS && j.hlsOutput == nil && !j.hlsStarting && (j.status.HLS == "waiting_resources" || j.status.HLS == "codec_or_tools_unavailable")
+		retryHLS := j.config.HLS && j.hlsOutput == nil && !j.hlsStarting && (j.status.HLS == "waiting_resources" || j.status.HLS == "codec_or_tools_unavailable" || j.status.HLS == "recovering_output")
 		retryDelay := 2 * time.Second
 		if j.status.HLS == "codec_or_tools_unavailable" {
 			retryDelay = 15 * time.Second
@@ -166,7 +166,7 @@ func (m *Manager) attempt(j *job) (attemptError error) {
 					j.status.UDP = "failed"
 				}
 				j.mu.Unlock()
-				return errUDPOutput
+				// A failed destination must not tear down the shared source.
 			} else {
 				j.mu.Lock()
 				j.status.UDP = "sending"
@@ -175,14 +175,24 @@ func (m *Manager) attempt(j *job) (attemptError error) {
 		}
 		if segmenter != nil {
 			if e = segmenter.WritePacket(packet); e != nil {
-				_ = segmenter.Close()
 				j.mu.Lock()
-				if j.hlsOutput == segmenter {
-					j.hlsOutput = nil
-					j.status.HLS = "failed_or_revoked"
-				}
+				manager, release := j.hlsManager, j.hlsRelease
+				j.hlsOutput, j.hlsManager, j.hlsRelease = nil, nil, nil
+				j.status.HLS = "recovering_output"
 				j.mu.Unlock()
-				return errHLSOutput
+				// Cleanup may wait for ffmpeg: keep it outside the source read loop.
+				j.hlsWG.Add(1)
+				go func() {
+					defer j.hlsWG.Done()
+					segmenter.Close()
+					if manager != nil {
+						manager.Close()
+					}
+					if release != nil {
+						release()
+					}
+				}()
+
 			}
 		}
 		if retryHLS && !hlsPending && time.Since(lastHLSAttempt) > retryDelay {
@@ -218,7 +228,7 @@ func (j *job) closeOutputs() {
 	if j.status.UDP == "sending" || j.status.UDP == "ready" {
 		j.status.UDP = "stopped"
 	}
-	if j.status.HLS == "running" || j.status.HLS == "validating_codecs" || j.status.HLS == "waiting_resources" {
+	if j.status.HLS == "running" || j.status.HLS == "validating_codecs" || j.status.HLS == "waiting_resources" || j.status.HLS == "recovering_output" {
 		j.status.HLS = "stopped"
 	}
 	j.mu.Unlock()
@@ -296,7 +306,7 @@ func (m *Manager) prepareHLS(ctx context.Context, j *job, sample []byte) {
 		j.hlsRelease = release
 		retained = true
 		j.hlsManager = manager
-		j.hlsOutput = segmenter
+		j.hlsOutput = isolateOutput(ctx, segmenter)
 		j.status.HLS = "running"
 		j.mu.Unlock()
 	}()

@@ -374,6 +374,12 @@ Entradas SRT mostram descartes, retransmissoes, RTT e latencia da conexao real.
 A amostra TS informa erros de continuidade e TEI antes/depois do processamento.
 O player ocupa a mesma caixa 16:9 aberto, fechado ou durante carregamento.
 
+Falhas ou lentidao do segmentador HLS nao encerram a entrada nem a saida TS.
+A escrita HLS usa fila limitada a 1024 pacotes TS (188 KiB); saturacao encerra
+somente essa saida, sem descartar pacotes dentro de segmentos aparentemente
+validos. O supervisor prepara novamente o HLS a partir do fluxo compartilhado,
+sem abrir outra origem. A tela informa Recuperando saida HLS durante a tentativa.
+
 ### Orçamento de processos de mídia
 
 O agente usa, por padrão, duas CPUs lógicas para o runtime Go, limite suave de
