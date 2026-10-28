@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"golang.org/x/crypto/bcrypt"
+	"image/jpeg"
 	"io"
 	"kore-edge/internal/accounts"
 	"kore-edge/internal/hls"
@@ -176,6 +177,18 @@ func TestVLCNativeHLSPlaylistAndSegmentWithoutCookies(t *testing.T) {
 	}
 	if hls.ValidateInput(ctx, hls.Config{Enabled: true, FFmpeg: tool, FFprobe: probe, Root: filepath.Join(dir, "codec-check")}, tsData) != nil {
 		t.Fatal("permanent TS does not preserve H.264/AAC")
+	}
+	thumb, err := m.Thumbnail(context.Background(), "synthetic")
+	if err != nil {
+		t.Fatal("native thumbnail", err)
+	}
+	dimensions, err := jpeg.DecodeConfig(bytes.NewReader(thumb))
+	if err != nil || dimensions.Width != 480 || dimensions.Height != 270 {
+		t.Fatal("invalid real output thumbnail")
+	}
+	again, err := m.Thumbnail(context.Background(), "synthetic")
+	if err != nil || !bytes.Equal(thumb, again) {
+		t.Fatal("thumbnail cache not reused")
 	}
 	if c.opens.Load() != 1 {
 		t.Fatal("HLS player opened duplicate origin")

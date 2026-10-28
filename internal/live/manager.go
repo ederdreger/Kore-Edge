@@ -79,6 +79,7 @@ type Manager struct {
 	maxActive       int
 	ingestSlots     chan struct{}
 	previewSlots    chan struct{}
+	thumbnails      thumbnailCache
 }
 type Snapshot struct {
 	ManualRevision uint64               `json:"manual_revision"`

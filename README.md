@@ -438,6 +438,14 @@ A aba Qualidade mostra o motivo seguro da ultima falha: prazo da matriz, falta d
 
 ## Menu Mídia
 
+O play da lista abre uma janela centralizada; na visao geral o video permanece
+embutido na propria caixa. Cartoes mostram uma imagem real da saida, com play
+central. Apenas cartoes visiveis de canais ativos pedem imagens, a cada 20 s.
+Capturas compartilham a recepcao existente, com duas tarefas simultaneas, prazo
+de quatro segundos, JPEG 480x270 limitado a 128 KiB e cache de 15 s. Sem sinal
+ou ferramentas disponiveis, o card informa que a previa esta indisponivel.
+
+
 **Mídia** (`#media`) abre a lista compacta de transmissões em português, com fundo azul-acinzentado claro, linhas zebradas e cabeçalho fixo. Busca, filtros de estado, ordenação, paginação e visualização em cartões usam o catálogo real existente. As abas visíveis são **Transmissões** e **Fontes**. Modelos, multiplexadores, VOD e placas DVB permanecem ocultos nesta entrega.
 
 Administradores podem adicionar uma origem, iniciar/parar, reconectar, operar seleções e consultar links permanentes; espectadores têm leitura e reprodução de recepções já ativas. A página reutiliza as APIs atuais, sem novos serviços ou transcodificação. Gravação aparece como indisponível. O tráfego de saída não medido é indicado explicitamente. Veja [funcionamento e aceite](docs/MIDIA.md).
