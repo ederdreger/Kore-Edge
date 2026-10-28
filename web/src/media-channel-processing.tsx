@@ -1,12 +1,14 @@
+import {mediaRate,mediaDuration} from './media-model';
 import {useEffect,useState} from 'react';
-import {ArrowDown,ArrowUp,Plus,Trash2} from 'lucide-react';
+import {ArrowDown,ArrowUp,Plus,Trash2,ArrowRightCircle,ArrowLeftCircle,Tv,Activity,Clock3} from 'lucide-react';
 import {detectLink} from './manual-channel-editor';
 import {stateLabel,failureLabel,type LiveStream,type Capabilities,useLiveDistribution} from './live-distribution';
 
 type Live=ReturnType<typeof useLiveDistribution>;
 type Input={key:string;address?:string;url?:string;protocol:string;interface:string;local_ip:string};
 export type Transcode={mode:'copy'|'h264';device?:string;video_kbps?:number;width?:number;height?:number;fps?:number;audio?:'copy'|'aac';audio_kbps?:number};
-type MediaInfo={video?:string;audio?:string;width?:number;height?:number;continuity_errors?:number;transport_errors?:number;measured_at:string};
+type MediaTrack={kind:'video'|'audio'|'subtitle';codec:string;index:number;pid?:number;width?:number;height?:number;channels?:number;sample_rate?:number;bits_per_second?:number;language?:string};
+type MediaInfo={tracks?:MediaTrack[];video?:string;audio?:string;width?:number;height?:number;continuity_errors?:number;transport_errors?:number;measured_at:string};
 type Profile={input_receiver?:string;input_srt?:{received:number;missing:number;retransmitted:number;dropped:number;undecryptable:number;rtt_ms:number;latency_ms:number};input_media?:MediaInfo;output_media?:MediaInfo;revision:number;inputs:Input[];transcode:Transcode;active_key:string;local:boolean};
 type Devices={devices:{id:string;name:string}[];max_concurrent:number;warning:string};
 type Props={id:string;live:Live;blocked:boolean;tab:'input'|'transcoder'};
@@ -15,6 +17,11 @@ const label=(p:string)=>({http_ts:'HTTP MPEG-TS',hls:'HLS',udp:'UDP MPEG-TS',srt
 
 function MeasuredMedia({info,online}:{info?:MediaInfo;online:boolean}){
  if(!online||!info)return <p>Codecs e resolução: {online?'Aguardando medição do fluxo':'Sem medição atual'}</p>;
+ if(info.tracks?.length)return <div className="mc-tracks">{info.tracks.map((track,index)=>{
+  const number=info.tracks!.slice(0,index+1).filter(t=>t.kind===track.kind).length;
+  const code=track.codec==='h264'?'H.264':track.codec==='hevc'?'H.265':track.codec.toUpperCase();
+  return <details key={track.index+'-'+index} className={'mc-track mc-track-'+track.kind}><summary>{track.kind==='video'?'v':track.kind==='audio'?'a':'s'}{number} {code}{track.width&&track.height?` ${track.width}×${track.height}`:''}{track.channels?` · ${track.channels} canal(is)`:''}{track.language?` · ${track.language}`:''}{track.pid!==undefined?` · PID ${track.pid}`:''}{track.bits_per_second?` (${mediaRate(track.bits_per_second)})`:''}</summary><dl><dt>Tipo</dt><dd>{track.kind==='video'?'Vídeo':track.kind==='audio'?'Áudio':'Legenda'}</dd><dt>Codec</dt><dd>{code}</dd>{track.sample_rate&&<><dt>Amostragem</dt><dd>{track.sample_rate} Hz</dd></>}</dl></details>
+ })}</div>;
  return <><p>Vídeo: {info.video?.toUpperCase()||'Não identificado'}{info.width&&info.height?` · ${info.width} × ${info.height}`:''}</p><p>Áudio: {info.audio?.toUpperCase()||'Não identificado'}</p><p>Erros na amostra TS: continuidade {info.continuity_errors??'Não medido'} · transporte {info.transport_errors??'Não medido'}</p></>;
 }
 export function ChannelProcessingSummary({id,live,stream,fallbackProtocol}:{id:string;live:Live;stream?:LiveStream;fallbackProtocol:string}){
@@ -22,7 +29,11 @@ export function ChannelProcessingSummary({id,live,stream,fallbackProtocol}:{id:s
  useEffect(()=>{if(!live.admin)return;let disposed=false;setValue(null);const load=()=>{void live.call('GET','manual-channels/processing?id='+encodeURIComponent(id)).then(v=>{if(!disposed)setValue(v)}).catch(()=>{if(!disposed)setValue(null)})};load();const timer=setInterval(load,5000);return()=>{disposed=true;clearInterval(timer)}},[id,live.admin,live.call]);
  const active=value?.inputs?.find(v=>v.key===value.active_key);
  const online=stream?.state==='running';
- return <><div><h2>Informações de entrada</h2><p>{active?label(active.protocol):value?.local?'Entrada ativa ainda não identificada':label(fallbackProtocol)}</p><MeasuredMedia info={value?.input_media} online={online}/>{online&&value?.input_receiver&&<p>Receptor SRT: {value.input_receiver}</p>}{online&&value?.input_srt&&<p>SRT: {value.input_srt.dropped} descartados · {value.input_srt.retransmitted} retransmitidos · RTT {value.input_srt.rtt_ms.toFixed(1)} ms · latência {value.input_srt.latency_ms} ms</p>}<p>Interrupções: {stream?.interruptions??'Não medido'}</p><p>Última queda: {failureLabel(stream?.last_failure_reason)}</p></div><div><h2>Informações de saída</h2><MeasuredMedia info={value?.output_media} online={online}/><p>MPEG-TS: {online?'Disponível':'Sem recepção'}</p><p>HLS: {stateLabel(stream?.hls_state)}</p><p>UDP: {stateLabel(stream?.udp_state)}</p><p>{value?.transcode?.mode==='copy'?'Sem transcodificação':value?.transcode?.mode==='h264'?'Perfil H.264 · '+value.transcode.device:'Processamento: indisponível nesta consulta'}</p>{active&&<p>Origem selecionada: {label(active.protocol)} · URL {value!.inputs.indexOf(active)+1}</p>}<p>Codecs medidos em amostra real; bitrate no fluxo compartilhado, após processamento quando ativo.</p></div></>;
+ const started=Date.parse(stream?.started_at||''),height=value?.output_media?.height;
+ return <><div className="mc-status-heading"><span className={'mc-online-pill '+(online?'is-online':'')}>{online?'Recebendo':stateLabel(stream?.state)}</span><div className="mc-stream-facts">{height&&<span><Tv size={14}/>{height>=2160?'UHD':height>=1080?'Full HD':height>=720?'HD':'SD'}</span>}<span title="Taxa do fluxo compartilhado após processamento"><Activity size={14}/>{mediaRate(stream?.metrics.bits_per_second)}</span>{online&&Number.isFinite(started)&&<span title="Tempo desta recepção"><Clock3 size={14}/>{mediaDuration((Date.now()-started)/1000)}</span>}</div></div>
+ <div className="mc-media-info"><div><h2><ArrowRightCircle size={16}/>Informações de entrada</h2><p className="mc-info-protocol">{active?label(active.protocol):value?.local?'Entrada ativa ainda não identificada':label(fallbackProtocol)}</p><MeasuredMedia info={value?.input_media} online={online}/></div><div><h2><ArrowLeftCircle size={16}/>Informações de saída</h2><p className="mc-info-protocol">Fluxo distribuído pelo Edge</p><MeasuredMedia info={value?.output_media} online={online}/></div></div>
+ <details className="mc-reception-diagnostics"><summary>Diagnóstico da recepção e das saídas</summary><div><p>Interrupções: {stream?.interruptions??'Não medido'}</p><p>Última queda: {stream?.interruptions===0?'Sem quedas nesta recepção':failureLabel(stream?.last_failure_reason)}</p>{online&&value?.input_receiver&&<p>Receptor SRT: {value.input_receiver}</p>}{online&&value?.input_srt&&<p>SRT: {value.input_srt.dropped} descartados · {value.input_srt.retransmitted} retransmitidos · RTT {value.input_srt.rtt_ms.toFixed(1)} ms</p>}<p>MPEG-TS: {online?'Disponível':'Sem recepção'} · HLS: {stateLabel(stream?.hls_state)} · UDP: {stateLabel(stream?.udp_state)}</p><p>{value?.transcode?.mode==='copy'?'Sem transcodificação':value?.transcode?.mode==='h264'?'Perfil H.264 · '+value.transcode.device:'Processamento: indisponível nesta consulta'}</p>{active&&<p>Origem selecionada: {label(active.protocol)} · URL {value!.inputs.indexOf(active)+1}</p>}<p>Codecs, resolução e PIDs medidos em amostras reais; taxas por trilha aparecem somente quando informadas pelo fluxo.</p></div></details></>;
+
 
 }
 

@@ -2,7 +2,7 @@
 
 ## Cadastro de canais pelo link da matriz
 
-Em **Canais → Adicionar canal**, cole a saída do Flussonic ou de outra matriz:
+Em **Mídia → +**, cole a saída do Flussonic ou de outra matriz:
 HTTP MPEG-TS (`/mpegts` ou `.ts`), HLS (`.m3u8`), UDP MPEG-TS ou SRT caller.
 O protocolo aparece ao digitar; **Salvar canal** inicia a recepção automaticamente
 quando habilitado. O fluxo é compartilhado com o player e as saídas. HLS é
@@ -18,7 +18,7 @@ permissões da matriz. Consulte o [passo a passo e limites](docs/modules/20-manu
 
 ## Recepção contínua, SRT e saídas reais
 
-**Canais** concentra cadastro, origem, recepção e saídas UDP/HLS por canal. O menu duplicado **Saídas** foi removido; links antigos abrem **Canais**. Configure um canal, salve a configuração e use **Iniciar canal**. O fluxo permanece aberto com o player fechado e é compartilhado com
+**Mídia** concentra cadastro, origem, recepção e saídas por canal. Os menus duplicados **Canais** e **Saídas** foram removidos; links antigos abrem **Mídia**. Configure um canal, salve a configuração e use **Iniciar canal**. O fluxo permanece aberto com o player fechado e é compartilhado com
 as saídas autorizadas. O painel informa tempo até o primeiro sinal, bitrate
 medido, continuidade TS, falhas e permissões; métricas ausentes não são simuladas.
 
@@ -35,7 +35,7 @@ da tela. Veja o [passo a passo de operação](docs/DISTRIBUICAO-AO-VIVO.md) e o
 No Kore Play, **Canais → Parceiros Kore Edge** permite escolher o parceiro e
 salvar o parceiro e abrir automaticamente a seleção de canais e protocolos.
 Parceiros existentes têm botão explícito para editar a seleção e publicá-la.
-No Edge, **Canais → Canais do Kore Play** busca a lista,
+No Edge, **Mídia → Integração Kore Play** busca a lista,
 mostra HTTP MPEG-TS/HLS disponíveis na origem, teste curto de sinal e **Play**
 por canal. O mini player abre uma prévia autenticada por vez, com pausa/fechamento
 encerrando a conexão e limite de cinco minutos. Codecs dependem do navegador.
@@ -347,7 +347,7 @@ Revogação e expiração continuam encerrando a mídia.
 
 ## Player contínuo e organização dos canais
 
-Em **Canais**, escolha **Lista** (zebra, busca e filtros) ou **Mini cards**.
+Em **M?dia**, escolha lista (zebra, busca e filtros) ou cart?es.
 Os botões de teste de sinal e o atalho duplicado de recepção/saídas foram
 removidos dessa tela. Use a engrenagem para configurar e a aba **Saídas** para
 consultar links TS/HLS ou informar o destino multicast UDP. **Lista TS/HLS**
@@ -405,7 +405,7 @@ O rollback inclui `live/distribution.json`, além de YAML, gateway e release.
 ## Saídas permanentes para XUI One
 
 Cada canal possui endereços MPEG-TS e HLS fixos, exibidos automaticamente em
-**Canais → canal → Saídas**. Copie o endereço para o XUI One ou outro receptor.
+**Mídia → canal → Saídas**. Copie o endereço para o XUI One ou outro receptor.
 Não há geração manual, expiração ou botão de revogar. **Lista TS/HLS**
 exporta os canais filtrados com os mesmos endereços. O HLS tem endereço reservado
 mesmo antes de estar pronto, mas só fornece segmentos quando configurado,
@@ -468,3 +468,18 @@ Salvar reinicia somente o canal alterado que j� estava recebendo; canais pausado
 **M�dia ? canal ? Sa�das** re�ne TS/HLS permanentes, DASH e HLS CMAF, player incorpor�vel, API de estado, RTMP/RTSP/SRT e configura��o UDP. Os protocolos adicionais s�o optativos e usam o mesmo fluxo recebido. RTMP/RTSP/SRT exigem MediaMTX opcional e IP/portas confirmados no painel; nada abre listeners externos por padr�o. Veja [uso, instala��o opcional, limites, seguran�a e valida��o](docs/MIDIA-SAIDAS.md).
 
 A coleta inicial de codecs do HLS come�a no primeiro pacote efetivamente recebido, sem descontar o tempo de abertura da origem/encoder. Se uma amostra inicial n�o identificar os codecs, a valida��o volta a ser tentada com intervalo limitado, mantendo a recep��o TS cont�nua. Um ensaio nativo com abertura atrasada verifica playlist, segmento H.264/AAC e uma �nica origem.
+
+### Gestao consolidada e medicoes da visao geral
+
+Midia e o unico modulo de gerenciamento de canais. Os links antigos de Canais
+abrem Midia; cadastros, APIs e links permanentes sao preservados. A integracao
+fica no botao Integracao Kore Play dentro de Midia.
+
+A Visao geral apresenta cards de entrada e saida por trilha: codec, resolucao,
+idioma, canais, PID e bitrate aparecem apenas quando medidos. As trilhas podem
+ser expandidas. Interrupcoes e estados das saidas ficam em diagnostico.
+O grafico mostra entrada antes do codificador, entrega HTTP TS/HLS e conexoes
+TS em eixos separados, com legenda e consulta de amostras por mouse ou teclado.
+Taxas medem payload, nao banda fisica. UDP/SRT/RTMP/RTSP/DASH nao sao somados
+nessa serie HTTP. Conexoes TS nao sao usuarios unicos nem sessoes HLS.
+Amostras indisponiveis nao viram zero. A recepcao e o player foram preservados.
