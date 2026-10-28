@@ -256,13 +256,13 @@ func (s *Service) SaveProcessingPolicy(id string, inputs *[]Input, transcode *Tr
 		}
 		nextPolicy := *policy
 		nextPolicy.Token = p.Policy.Token
-		if (nextPolicy.Publication || nextPolicy.ClusterExport) && (nextPolicy.Token == ""||nextPolicy.RotateToken) {
+		if (nextPolicy.Publication || nextPolicy.ClusterExport) && (nextPolicy.Token == "" || nextPolicy.RotateToken) {
 			nextPolicy.Token = random()
 			if !inputKey.MatchString(nextPolicy.Token) || nextPolicy.Token == "primary" {
 				return ErrUnavailable
 			}
 		}
-		nextPolicy.RotateToken=false
+		nextPolicy.RotateToken = false
 		if nextPolicy.BackupAsset != "" {
 			if _, e := s.assetPath(nextPolicy.BackupAsset, "backup"); e != nil {
 				return e
@@ -277,7 +277,9 @@ func (s *Service) SaveProcessingPolicy(id string, inputs *[]Input, transcode *Tr
 		if in.Protocol == "publish" && !p.Policy.Publication {
 			return ErrInvalid
 		}
-		if in.Protocol=="cluster"&&p.Policy.ClusterExport{return ErrInvalid}
+		if in.Protocol == "cluster" && p.Policy.ClusterExport {
+			return ErrInvalid
+		}
 	}
 	if transcode != nil {
 		if !validateTranscode(*transcode) {

@@ -1,7 +1,7 @@
 package api
 
 import (
-"context"
+	"context"
 	"io"
 	"net"
 	"net/http"
@@ -56,8 +56,27 @@ func (a *API) mediaIngest(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		ctx,cancel:=context.WithCancel(r.Context());defer cancel();done:=make(chan struct{});defer close(done)
-		go func(){ticker:=time.NewTicker(time.Second);defer ticker.Stop();for{select{case<-done:return;case<-ctx.Done():return;case<-ticker.C:if !a.ManualChannels.IngestAuthorized(id,strings.TrimPrefix(auth,"Bearer "),false){cancel();return}}}}()
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+		done := make(chan struct{})
+		defer close(done)
+		go func() {
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-done:
+					return
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					if !a.ManualChannels.IngestAuthorized(id, strings.TrimPrefix(auth, "Bearer "), false) {
+						cancel()
+						return
+					}
+				}
+			}
+		}()
 		a.Live.ServePersistentTS(w, r.WithContext(ctx), id)
 		return
 	}
