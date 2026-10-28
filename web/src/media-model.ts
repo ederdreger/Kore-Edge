@@ -2,7 +2,7 @@ import type {LiveChannel, LiveConfig, LiveStream} from './live-distribution';
 
 export type MediaState = 'online' | 'waiting' | 'disabled' | 'error';
 export type MediaRow = {channel:LiveChannel; config?:LiveConfig; stream?:LiveStream};
-export const receptionRequested=(row:MediaRow)=>!!row.stream&&['running','starting','backoff','queued','waiting_capacity','waiting_hls_capacity'].includes(row.stream.state);
+export const receptionRequested=(row:MediaRow)=>!!row.stream&&['running','starting','backoff','queued','waiting_capacity','waiting_hls_capacity','waiting_transcode_capacity'].includes(row.stream.state);
 export function mediaState(row:MediaRow,now=Date.now()):MediaState{
  const s=row.stream;
  if(s&&['failed','unauthorized'].includes(s.state))return 'error';

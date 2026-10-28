@@ -195,3 +195,9 @@ A capacidade e explicita no ambiente do servico, com padroes conservadores. Alte
 ## Falhas de recepcao e prazos entre servicos
 
 O prazo de resposta inicial do cliente da matriz e de 8 segundos, superior aos 5 segundos de abertura da origem no Kore Play. A conexao de midia nao possui prazo total. Falhas HTTP conservam somente o codigo e falhas de rede conservam somente a categoria de timeout. Cada ativacao guarda o ultimo motivo de falha no status, mesmo apos recuperar; o monitor diferencia ausencia de pacotes de erros de abertura, leitura e saida. Logs agregados por protocolo/motivo nao incluem identidade de canal, URL, mensagem remota ou credenciais. Uma atualizacao exige acompanhar esses motivos antes de atribuir toda queda a uma causa unica.
+
+## Perfis de entrada e processamento
+
+`manualchannels` mantém `processing.json` privado, separado da origem legada: até oito entradas ordenadas por canal local e um perfil explícito de H.264 ou cópia. `OpenConfigured` só intercepta canais com perfil válido; os demais seguem o caminho existente. Cada tentativa recebe uma origem por vez; falha e ausência de pacotes fazem o supervisor tentar a próxima. A transformação recebe TS por stdin, sem URLs/credenciais em argv, e alimenta o mesmo hub de player/TS/HLS/UDP. Grants da matriz continuam verificados.
+
+Codificadores CPU/NVENC/VAAPI são oferecidos após ensaio sintético limitado, como o usuário do serviço. A reserva de dois processos é independente das vagas HLS; falta de vaga tem estado próprio e não conta como queda de sinal. Não se muda o isolamento de dispositivos do systemd. Detalhes, rollback de perfil e limitações: [entradas e transcodificação](MIDIA-ENTRADAS-TRANSCODIFICACAO.md).

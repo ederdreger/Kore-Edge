@@ -5,7 +5,19 @@ import {AccountContext} from './account-context';
 import {MediaWorkspace} from './media-workspace';
 import {channelPath,readMediaRoute} from './media-channel-route';
 const id='local_'+'a'.repeat(32),url='https://synthetic-user:synthetic-password@media.example/CANAL/mpegts?token=synthetic-token';
+vi.mock('./preview-engine',()=>({startPreview:()=>vi.fn()}));
 afterEach(()=>{cleanup();vi.restoreAllMocks();window.history.replaceState(null,'','#media')});
+
+it('keeps overview playback inside its player box and closing it does not stop reception',async()=>{
+ const request=fixture({existing:true});
+ const button=await screen.findByRole('button',{name:'Reproduzir canal'});fireEvent.click(button);
+ const player=await screen.findByRole('region',{name:'Mini player: Canal sintético'});
+ expect(player.classList.contains('channel-player-embedded')).toBe(true);
+ expect(player.closest('.mc-player')).not.toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Parar e fechar'}));
+ expect(screen.queryByRole('region',{name:'Mini player: Canal sintético'})).toBeNull();
+ expect(request.mock.calls.every(c=>c[0]==='GET')).toBe(true);
+});
 function fixture({existing=false,failSave=false,viewer=false,tab='overview'}={}){
  window.history.replaceState(null,'',existing?channelPath(id,tab as 'overview'|'input'|'output'):'#media/new');
  let source:any=existing?{id,name:'Canal sintético',title:'Título original',description:'Descrição original',category:'',protocol:'http_ts',address:'https://media.example/CANAL/mpegts',enabled:true,interface:'',local_ip:''}:null;
@@ -13,7 +25,9 @@ function fixture({existing=false,failSave=false,viewer=false,tab='overview'}={})
  const view=()=>({manual_revision:revision,configuration:{generation:1,tools:{ffmpeg:'',ffprobe:''},channels:source?[{channel_id:id,protocol:source.protocol,resume:true,hls:false}]:[]},catalog:{available:true,configured:false,last_sync:'',catalog:{partner_name:'',channels:source?[{id,name:source.name,category:'',outputs:['hls','udp'],protocols:[{id:source.protocol,label:'HTTP MPEG-TS',path:'/synthetic'}]}]:[]}},streams:source?[{channel_id:id,protocol:source.protocol,state:'running',started_at:new Date().toISOString(),startup_ms:1,attempts:1,interruptions:0,udp_state:'disabled',hls_state:'disabled',metrics:{bytes:1316,bits_per_second:1000000,subscribers:0,last_packet_at:new Date().toISOString()}}]:[],max_active:16});
  const inventory=()=>({revision,channels:source?[source]:[]});
  const request=vi.fn(async(method:string,path:string,body?:any)=>{
-  if(path==='/api/v1/live/capabilities')return new Response(JSON.stringify({tools:{ffmpeg:'',ffprobe:''},interfaces:[{name:'eth-lab',up:true,multicast:true,ipv4:['192.0.2.10']}]}));
+  if(path.startsWith('/api/v1/manual-channels/processing?'))return new Response(JSON.stringify({revision,local:true,active_key:'primary',transcode:{mode:'copy'},inputs:[{key:'primary',address:source?.address,protocol:source?.protocol,interface:'',local_ip:''}]}));
+ if(path==='/api/v1/manual-channels/encoders')return new Response(JSON.stringify({devices:[],max_concurrent:2,warning:''}));
+ if(path==='/api/v1/live/capabilities')return new Response(JSON.stringify({tools:{ffmpeg:'',ffprobe:''},interfaces:[{name:'eth-lab',up:true,multicast:true,ipv4:['192.0.2.10']}]}));
   if(path==='/api/v1/manual-channels'){
    if(method==='GET')return new Response(JSON.stringify(inventory()));
    if(body.action==='save'){
@@ -46,7 +60,7 @@ it('saves name and source then opens the actual channel overview without placing
  expect(calls).toHaveLength(1);
  expect(calls[0][2].source).toMatchObject({name:'Canal sintético',url,protocol:'http_ts',enabled:true});
  expect(screen.getByRole('tab',{name:'Visão geral'}).getAttribute('aria-selected')).toBe('true');
- expect((screen.getByRole('tab',{name:'Transcodificação'}) as HTMLButtonElement).disabled).toBe(true);
+ expect((screen.getByRole('tab',{name:'Transcodificação'}) as HTMLButtonElement).disabled).toBe(false);
 });
 it('cancel does not create a channel and a failed save stays on the creation page',async()=>{
  const request=fixture({failSave:true});
@@ -75,8 +89,8 @@ it('saves descriptive metadata on a running channel without stop/start or resend
 });
 it('supports direct input links and returning to transmissions without any channel action',async()=>{
  const request=fixture({existing:true,tab:'input'});
- await screen.findByRole('heading',{name:'Entrada do canal'});
- expect(screen.getByText('https://media.example/CANAL/mpegts')).toBeTruthy();
+ await screen.findByRole('heading',{name:'Entradas do canal'});
+ expect(screen.getByPlaceholderText('https://media.example/CANAL/mpegts')).toBeTruthy();
  fireEvent.click(screen.getByRole('link',{name:'Transmissões'}));
  await screen.findByRole('heading',{name:'Mídia'});
  expect(request.mock.calls.every(c=>c[0]==='GET')).toBe(true);

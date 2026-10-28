@@ -36,6 +36,29 @@ func TestMediaSaturationQueuesWithoutCountingSourceFailure(t *testing.T) {
 	}
 }
 
+func TestTranscodeCapacityIsDistinctAndDoesNotCountSignalFailure(t *testing.T) {
+	c := &syntheticCatalog{}
+	c.allowed.Store(true)
+	m, e := New(context.Background(), filepath.Join(t.TempDir(), "live"), c)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer m.Close()
+	m.open = func(context.Context, ChannelConfig, Tools) (io.ReadCloser, error) {
+		return nil, mediaresources.ErrTranscodeBusy
+	}
+	if m.Save(ChannelConfig{ChannelID: "synthetic-transcode", Protocol: "http_ts"}, Tools{}, 0) != nil || m.Start("synthetic-transcode") != nil {
+		t.Fatal("start")
+	}
+	waitStatus(t, m, "waiting_transcode_capacity")
+	if m.Snapshot().Streams[0].Interruptions != 0 {
+		t.Fatal("capacity counted as signal drop")
+	}
+	if m.Stop("synthetic-transcode") != nil || m.IsActive("synthetic-transcode") {
+		t.Fatal("queued encoder did not stop")
+	}
+}
+
 func TestHLSValidationReservationIsReleasedOnDenial(t *testing.T) {
 	first, ok := mediaresources.Output()
 	if !ok {
