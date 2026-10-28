@@ -10,6 +10,9 @@ import (
 //go:embed web/*
 var playerFiles embed.FS
 
+// PlayerLibrary reuses the bundled HLS.js and its existing license attribution.
+func PlayerLibrary() []byte { data, _ := playerFiles.ReadFile("web/hls.min.js"); return data }
+
 func (m *Manager) Player(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; media-src 'self' blob:; connect-src 'self'; worker-src blob:")
 	w.Header().Set("Cache-Control", "no-store")

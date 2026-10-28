@@ -83,9 +83,13 @@ func (a *API) playbackLinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type link struct {
-		ID  string `json:"channel_id"`
-		TS  string `json:"ts_path"`
-		HLS string `json:"hls_path"`
+		ID    string `json:"channel_id"`
+		TS    string `json:"ts_path"`
+		HLS   string `json:"hls_path"`
+		Embed string `json:"embed_path"`
+		DASH  string `json:"dash_path"`
+		CMAF  string `json:"cmaf_path"`
+		Info  string `json:"info_path"`
 	}
 	links := []link{}
 	for _, id := range ids {
@@ -95,7 +99,7 @@ func (a *API) playbackLinks(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		base := "/api/v1/playback/" + raw + "/" + id + "/"
-		links = append(links, link{ID: id, TS: base + "stream.ts", HLS: base + "index.m3u8"})
+		links = append(links, link{ID: id, TS: base + "stream.ts", HLS: base + "index.m3u8", Embed: base + "embed.html", DASH: base + "cmaf/index.mpd", CMAF: base + "cmaf/master.m3u8", Info: base + "media_info.json"})
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"links": links})
@@ -131,7 +135,8 @@ func (a *API) externalPlayback(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(403)
 		return
 	}
-	if r.Header.Get("Sec-Fetch-Site") == "cross-site" || r.URL.RawPath != "" || r.URL.RawQuery != "" || strings.ContainsAny(r.URL.Path, "\\") || strings.Contains(r.URL.Path, "..") {
+	embedPage := strings.HasSuffix(r.URL.Path, "/embed.html") || strings.HasSuffix(r.URL.Path, "/embed.js") || strings.HasSuffix(r.URL.Path, "/hls.js")
+	if r.Header.Get("Sec-Fetch-Site") == "cross-site" && !embedPage || r.URL.RawPath != "" || r.URL.RawQuery != "" || strings.ContainsAny(r.URL.Path, "\\") || strings.Contains(r.URL.Path, "..") {
 		w.WriteHeader(400)
 		return
 	}
@@ -144,13 +149,14 @@ func (a *API) externalPlayback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/playback/"), "/")
-	if len(parts) != 3 {
+	if len(parts) != 3 && !(len(parts) == 4 && parts[2] == "cmaf") {
 		w.WriteHeader(404)
 		return
 	}
 	raw, id, tail := parts[0], parts[1], parts[2]
-	isHLS := tail != "stream.ts"
-	if isHLS && tail != "index.m3u8" && !playbackSegment.MatchString(tail) {
+	segmented := len(parts) == 4
+	isHLS := tail == "index.m3u8" || playbackSegment.MatchString(tail) || segmented || embedPage
+	if !embedPage && !segmented && tail != "media_info.json" && tail != "stream.ts" && tail != "index.m3u8" && !playbackSegment.MatchString(tail) {
 		w.WriteHeader(404)
 		return
 	}
@@ -160,6 +166,32 @@ func (a *API) externalPlayback(w http.ResponseWriter, r *http.Request) {
 	}
 	if !allowed() {
 		w.WriteHeader(401)
+		return
+	}
+	if embedPage {
+		serveEmbed(w, r, tail)
+		return
+	}
+	if tail == "media_info.json" {
+		w.Header().Set("Content-Type", "application/json")
+		v := a.Live.Snapshot()
+		for _, status := range v.Streams {
+			if status.ChannelID == id {
+				if r.Method != "HEAD" {
+					json.NewEncoder(w).Encode(map[string]any{"channel_id": id, "state": status.State, "bits_per_second": status.Metrics.Bitrate, "last_packet_at": status.Metrics.LastPacket, "interruptions": status.Interruptions, "hls_state": status.HLS, "udp_state": status.UDP})
+				}
+				return
+			}
+		}
+		w.WriteHeader(503)
+		return
+	}
+	if segmented {
+		if a.Outputs == nil {
+			w.WriteHeader(503)
+			return
+		}
+		a.Outputs.ServeSegment(w, r, id, parts[3])
 		return
 	}
 	release, ok := a.Playback.Acquire(raw)

@@ -428,3 +428,7 @@ Nome, titulo e descricao de canais locais podem ser salvos durante a recepcao, s
 Em **Mídia ? canal**, o player permanece dentro da **Visão geral**. **Entrada** permite até oito URLs locais ordenadas, com detecção de protocolo e troca após falha, recebendo uma origem por vez. **Transcodificação** mantém **Transmitir sem transcodificar** como padrão; habilitar H.264 por CPU, NVIDIA ou VAAPI exige escolha explícita e codificação sintética bem-sucedida no dispositivo. Entradas importadas continuam administradas pelo Kore Play.
 
 Salvar reinicia somente o canal alterado que já estava recebendo; canais pausados permanecem parados e os links permanentes são preservados. O painel não instala drivers nem muda acesso a GPU, rede ou serviços. Há limite independente de dois codificadores simultâneos. Veja [uso, limites, API e aceite](docs/MIDIA-ENTRADAS-TRANSCODIFICACAO.md).
+
+### Página Saídas: URLs e protocolos
+
+**Mídia ? canal ? Saídas** reúne TS/HLS permanentes, DASH e HLS CMAF, player incorporável, API de estado, RTMP/RTSP/SRT e configuração UDP. Os protocolos adicionais são optativos e usam o mesmo fluxo recebido. RTMP/RTSP/SRT exigem MediaMTX opcional e IP/portas confirmados no painel; nada abre listeners externos por padrão. Veja [uso, instalação opcional, limites, segurança e validação](docs/MIDIA-SAIDAS.md).

@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-export type PlaybackLink={channel_id:string;ts_path:string;hls_path:string};
+export type PlaybackLink={channel_id:string;ts_path:string;hls_path:string;embed_path?:string;dash_path?:string;cmaf_path?:string;info_path?:string};
 type Call=(method:string,path:string,body?:unknown)=>Promise<any>;
 
 export function PlaybackLinks({channelID,admin,hlsState,call}:{channelID:string;admin:boolean;hlsState?:string;call:Call}){

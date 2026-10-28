@@ -48,6 +48,16 @@ jobs:
           umask 077
           KORE_MANUAL_FFMPEG="$RUNNER_TEMP/kore-manual-ffmpeg/bin/ffmpeg" go test -race ./internal/manualchannels -count=1 -timeout=90s
           KORE_PLAYBACK_FFMPEG="$RUNNER_TEMP/kore-manual-ffmpeg/bin/ffmpeg" go test -race ./internal/api -run TestVLCNativeHLS -count=1 -timeout=60s
+      - name: Native optional protocol outputs (synthetic loopback only)
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/kore-mediamtx.tar.gz"
+          curl --fail --location --retry 3 --max-time 180 'https://github.com/bluenviron/mediamtx/releases/download/v1.21.3/mediamtx_v1.21.3_linux_amd64.tar.gz' -o "$archive"
+          printf '0a2ea7eba96023631efa1bea7804823a9145b043b6646a8a05798d4ac24ed635  %s\n' "$archive" | sha256sum -c -
+          mkdir -m 700 "$RUNNER_TEMP/kore-mediamtx"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/kore-mediamtx" mediamtx LICENSE
+          umask 077
+          KORE_OUTPUT_MEDIAMTX="$RUNNER_TEMP/kore-mediamtx/mediamtx" KORE_OUTPUT_FFMPEG="$RUNNER_TEMP/kore-manual-ffmpeg/bin/ffmpeg" go test -race ./internal/output -count=1 -timeout=90s -v
       - run: go test ./internal/provision -run '^TestConcurrentConsumptionAcrossRegistryInstances$' -count=50 -timeout=120s
       - run: go build ./cmd/...
   web:
