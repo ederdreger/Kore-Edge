@@ -10,6 +10,7 @@ import (
 	"kore-edge/internal/catalog"
 	"kore-edge/internal/mediaresources"
 	"kore-edge/internal/security"
+	"kore-edge/internal/traffic"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -345,7 +346,7 @@ func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg,
 	if reader == nil {
 		return nil, true, ErrUnavailable
 	}
-	media := &pipelineMedia{srt: srtMediaStats(reader)}
+	media := &pipelineMedia{srt: srtMediaStats(reader), inputRate: traffic.New()}
 	if named, ok := reader.(interface{ ReceiverName() string }); ok {
 		media.receiver = named.ReceiverName()
 	} else if media.srt != nil {
@@ -374,7 +375,7 @@ func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg,
 			}
 		}
 	}
-	reader = observeMedia(ctx, reader, ffprobe, record(true))
+	reader = observeMedia(ctx, reader, ffprobe, record(true), media.inputRate)
 	if p.Transcode.Mode == "copy" {
 		return reader, true, nil
 	}

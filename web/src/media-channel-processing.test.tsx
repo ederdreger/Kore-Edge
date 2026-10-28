@@ -1,8 +1,19 @@
 // @vitest-environment jsdom
 import {afterEach,expect,it,vi} from 'vitest';
 import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
-import {ChannelProcessing} from './media-channel-processing';
+import {ChannelProcessing,ChannelProcessingSummary} from './media-channel-processing';
 afterEach(()=>{cleanup();vi.restoreAllMocks()});
+it('shows the active SRT input and measured input/output tracks separately',async()=>{
+ const call=vi.fn(async()=>({local:true,inputs:[{key:'main',protocol:'srt'}],active_key:'main',transcode:{mode:'copy'},input_media:{video:'h264',height:1080,tracks:[{kind:'video',codec:'h264',index:0,width:1920,height:1080,pid:803}]},output_media:{audio:'aac',height:720,tracks:[{kind:'audio',codec:'aac',index:1,channels:2,language:'por',sample_rate:48000,bits_per_second:131000}]}}));
+ render(<ChannelProcessingSummary id="synthetic" live={{admin:true,call} as any} stream={{state:'running',interruptions:0,metrics:{bits_per_second:3000000},started_at:new Date().toISOString()} as any} fallbackProtocol="hls"/>);
+ await screen.findByText('SRT');
+ expect(screen.getByText(/v1 H.264 1920/).textContent).toContain('PID 803');
+ expect(screen.getByText(/a1 AAC/).textContent).toContain('por');
+ expect(screen.getByText('48000 Hz')).toBeTruthy();
+ expect(screen.getByText('HD')).toBeTruthy();
+ expect(screen.getByText(/Sem quedas nesta/)).toBeTruthy();
+ expect(call.mock.calls).toHaveLength(1);
+});
 function fixture({tab='input',local=true,admin=true,devices=[{id:'cpu',name:'CPU sintética'}],stale=false}:{tab?:'input'|'transcoder';local?:boolean;admin?:boolean;devices?:{id:string;name:string}[];stale?:boolean}={}){
  let profile={revision:7,inputs:local?[{key:'primary',address:'https://synthetic.example/canal/mpegts',protocol:'http_ts',interface:'',local_ip:''}]:[],transcode:{mode:'copy'},active_key:'primary',local} as any;
  const call=vi.fn(async(method:string,path:string,body?:any)=>{

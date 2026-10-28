@@ -26,22 +26,24 @@ type Output interface {
 	Close() error
 }
 type Status struct {
-	ChannelID         string    `json:"channel_id"`
-	Protocol          string    `json:"protocol"`
-	State             string    `json:"state"`
-	Error             string    `json:"error,omitempty"`
-	StartedAt         time.Time `json:"started_at"`
-	FirstPacketAt     time.Time `json:"first_packet_at"`
-	StartupMS         *int64    `json:"startup_ms"`
-	Interruptions     uint64    `json:"interruptions"`
-	LastFailureReason string    `json:"last_failure_reason,omitempty"`
-	LastFailureAt     time.Time `json:"last_failure_at"`
-	NextRetryAt       time.Time `json:"next_retry_at"`
-	LastRecoveryAt    time.Time `json:"last_recovery_at"`
-	Attempts          int       `json:"attempts"`
-	Metrics           Metrics   `json:"metrics"`
-	UDP               string    `json:"udp_state"`
-	HLS               string    `json:"hls_state"`
+	InputBitrate      *float64          `json:"input_bits_per_second"`
+	Delivery          *DeliverySnapshot `json:"delivery,omitempty"`
+	ChannelID         string            `json:"channel_id"`
+	Protocol          string            `json:"protocol"`
+	State             string            `json:"state"`
+	Error             string            `json:"error,omitempty"`
+	StartedAt         time.Time         `json:"started_at"`
+	FirstPacketAt     time.Time         `json:"first_packet_at"`
+	StartupMS         *int64            `json:"startup_ms"`
+	Interruptions     uint64            `json:"interruptions"`
+	LastFailureReason string            `json:"last_failure_reason,omitempty"`
+	LastFailureAt     time.Time         `json:"last_failure_at"`
+	NextRetryAt       time.Time         `json:"next_retry_at"`
+	LastRecoveryAt    time.Time         `json:"last_recovery_at"`
+	Attempts          int               `json:"attempts"`
+	Metrics           Metrics           `json:"metrics"`
+	UDP               string            `json:"udp_state"`
+	HLS               string            `json:"hls_state"`
 }
 type job struct {
 	mu          sync.Mutex
@@ -80,6 +82,7 @@ type Manager struct {
 	ingestSlots     chan struct{}
 	previewSlots    chan struct{}
 	thumbnails      thumbnailCache
+	delivery        deliveryCounters
 }
 type Snapshot struct {
 	ManualRevision uint64               `json:"manual_revision"`
@@ -165,6 +168,13 @@ func (m *Manager) Snapshot() Snapshot {
 		if hub != nil {
 			status.Metrics = hub.Snapshot()
 		}
+		status.InputBitrate = status.Metrics.Bitrate
+		if measured, ok := m.catalog.(interface{ InputBitrate(string) (*float64, bool) }); ok {
+			if rate, found := measured.InputBitrate(status.ChannelID); found {
+				status.InputBitrate = rate
+			}
+		}
+		status.Delivery = m.deliverySnapshot(status.ChannelID)
 		if status.StartupMS != nil {
 			value := *status.StartupMS
 			status.StartupMS = &value

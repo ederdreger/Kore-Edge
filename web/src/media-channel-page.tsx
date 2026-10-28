@@ -1,3 +1,4 @@
+import {ChannelChart,type ChannelPoint} from './media-channel-chart';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {ChevronRight,Play,RefreshCw,Square,Tv,Trash2} from 'lucide-react';
 import {detectLink} from './manual-channel-editor';
@@ -12,30 +13,21 @@ import {ChannelProcessing,ChannelProcessingSummary} from './media-channel-proces
 
 type Source={id:string;name:string;title?:string;description?:string;category:string;address:string;protocol:string;interface:string;local_ip:string;enabled:boolean};
 type Inventory={revision:number;channels:Source[]};
-type Point={at:number;input:number|null;clients:number|null};
+
 type Props={route:Exclude<MediaRoute,{kind:'list'}>;live:ReturnType<typeof useLiveDistribution>;working:boolean;notice:string;onCreated:(id:string,message:string)=>void;onOperate:(rows:MediaRow[],action:'start'|'stop'|'restart')=>Promise<void>;version?:string};
 const protocolLabel=(p:string)=>({http_ts:'HTTP MPEG-TS',hls:'HLS',udp:'UDP MPEG-TS',srt:'SRT'}[p]||'Não identificado');
-
-function ChannelChart({points}:{points:Point[]}){
- const inputMax=Math.max(1,...points.map(p=>p.input||0)),clientMax=Math.max(1,...points.map(p=>p.clients||0));
- const paths=(field:'input'|'clients',maximum:number)=>{
-  const segments:string[]=[];let current:string[]=[];
-  points.forEach((p,i)=>{const value=p[field];if(value===null){if(current.length)segments.push(current.join(' '));current=[];return}current.push((20+i/Math.max(1,points.length-1)*560).toFixed(1)+','+(130-value/maximum*110).toFixed(1))});
-  if(current.length)segments.push(current.join(' '));return segments;
- };
- return <section className="mc-panel mc-chart" aria-label="Histórico observado do canal"><h2>Fluxo compartilhado e conexões TS</h2><div className="mc-chart-legend"><span className="mc-input-line">Fluxo compartilhado</span><span className="mc-client-line">Conexões TS</span><span>Saída: não medida</span></div><svg viewBox="0 0 600 155" role="img" aria-label="Amostras reais desde a abertura desta página">{[20,55,90,130].map(y=><line key={y} x1="20" x2="580" y1={y} y2={y} stroke="#dce4ef"/>)}{paths('input',inputMax).map((p,i)=><polyline key={'input'+i} points={p} fill="none" stroke="#e75b69" strokeWidth="2"/>)}{paths('clients',clientMax).map((p,i)=><polyline key={'clients'+i} points={p} fill="none" stroke="#3b69db" strokeWidth="2"/>)}</svg><div className="mc-chart-scale"><span>Escala do fluxo: {mediaRate(inputMax===1&&points.every(p=>p.input===null)?null:inputMax)}</span><span>Escala TS: {clientMax} conexão(ões)</span></div><p>{points.length<2?'Aguardando novas amostras.':'Horário: '+new Date(points[0].at).toLocaleTimeString('pt-BR')+' – '+new Date(points[points.length-1].at).toLocaleTimeString('pt-BR')+'. As escalas são independentes.'}</p></section>;
-}
 
 export function MediaChannelPage({route,live,working,notice,onCreated,onOperate,version}:Props){
  const {view,admin}=live,isNew=route.kind==='new',id=route.kind==='channel'?route.id:'';
  const [inventory,setInventory]=useState<Inventory|null>(null),[loadError,setLoadError]=useState(''),[error,setError]=useState(''),[message,setMessage]=useState('');
  const [name,setName]=useState(''),[url,setURL]=useState(''),[format,setFormat]=useState('auto'),[iface,setInterface]=useState(''),[localIP,setLocalIP]=useState(''),[cap,setCap]=useState<Capabilities|null>(null);
  const [metadata,setMetadata]=useState({name:'',title:'',description:''}),[baseRevision,setBaseRevision]=useState(0),[dirty,setDirty]=useState(false),[reload,setReload]=useState(0);
- const [busy,setBusy]=useState(false),[deleting,setDeleting]=useState(false),[playing,setPlaying]=useState<PreviewSource|null>(null),[points,setPoints]=useState<Point[]>([]);
+ const [busy,setBusy]=useState(false),[deleting,setDeleting]=useState(false),[playing,setPlaying]=useState<PreviewSource|null>(null),[points,setPoints]=useState<ChannelPoint[]>([]);
  const lock=useRef(false),alive=useRef(true),draft=useRef(false);
  const rows=mediaRows(view?.catalog.catalog?.channels||[],view?.configuration.channels||[],view?.streams||[]),row=rows.find(r=>r.channel.id===id),source=inventory?.channels.find(c=>c.id===id);
  const local=id.startsWith('local_'),blocked=busy||working||live.busy,protocol=format==='auto'?detectLink(url):format;
  const closePlayer=useCallback(()=>setPlaying(null),[]);
+ useEffect(()=>{setPoints([])},[id]);
  useEffect(()=>{alive.current=true;return()=>{alive.current=false}},[]);
  useEffect(()=>{
   let cancelled=false;
@@ -53,7 +45,7 @@ export function MediaChannelPage({route,live,working,notice,onCreated,onOperate,
  useEffect(()=>{
   if(!row?.stream)return;
   const stream=row.stream,fresh=mediaState(row)==='online';
-  setPoints(previous=>[...previous,{at:Date.now(),input:fresh?stream.metrics.bits_per_second:null,clients:stream.metrics.subscribers}].slice(-120));
+  setPoints(previous=>[...previous,{at:Date.now(),input:fresh?(stream.input_bits_per_second??null):null,output:stream.delivery?.http_bits_per_second??null,clients:stream.delivery?.ts_connections??null}].slice(-120));
  },[row?.stream]);
  async function create(event:React.FormEvent){
   event.preventDefault();if(lock.current||!admin||!inventory||blocked)return;
@@ -106,7 +98,7 @@ export function MediaChannelPage({route,live,working,notice,onCreated,onOperate,
    {!row&&<p className="media-empty">{view?'Canal não encontrado no catálogo atual.':'Carregando canal…'} <a href="#media">Voltar às transmissões</a></p>}
    {row&&route.kind==='channel'&&route.tab==='overview'&&<>
     <form className="mc-panel mc-description" aria-label="Descrição do canal" onSubmit={event=>void saveMetadata(event)}><h2>Descrição</h2><div className="mc-description-fields"><label>Nome<input required maxLength={128} value={source?metadata.name:row.channel.name} disabled={!admin||!source||blocked} onChange={e=>editMetadata('name',e.target.value)}/></label><label>Título<input maxLength={256} value={metadata.title} disabled={!admin||!source||blocked} onChange={e=>editMetadata('title',e.target.value)}/></label><label>Descrição<textarea rows={1} maxLength={2048} value={metadata.description} disabled={!admin||!source||blocked} onChange={e=>editMetadata('description',e.target.value)}/></label></div>{!local&&<p className="mc-muted">Este canal é gerenciado pela matriz Kore Play.</p>}<div className="mc-form-actions">{local&&admin&&<button className="mc-primary" type="submit" disabled={!source||!dirty||blocked||!metadata.name.trim()}>Salvar descrição</button>}{dirty&&<button type="button" disabled={blocked} onClick={()=>{draft.current=false;setDirty(false);setReload(n=>n+1);setError('')}}>Recarregar descrição</button>}</div></form>
-    <div className="mc-overview-grid"><section className="mc-panel mc-player"><div className="mc-player-toolbar"><div><button type="button" disabled={!admin||blocked} onClick={()=>void onOperate([row],receptionRequested(row)?'stop':'start')}>{receptionRequested(row)?<Square size={13}/>:<Play size={13}/>} {receptionRequested(row)?'Parar canal':'Iniciar canal'}</button><button type="button" disabled={!admin||blocked||!receptionRequested(row)} onClick={()=>void onOperate([row],'restart')}><RefreshCw size={13}/>Reconectar</button></div><span className="mc-continuous">Recepção contínua</span></div><div className="mc-player-stage">{playing?<ChannelPlayer embedded source={playing} onClose={closePlayer}/>:<div className="mc-video-placeholder"><Tv size={46}/><button type="button" className="mc-primary" disabled={!online} onClick={()=>play('http_ts')}><Play size={20}/>Reproduzir canal</button><span>{online?'Recepção ativa. Abra o player para assistir.':stateLabel(row.stream?.state)}</span></div>}</div><div className="mc-player-formats"><button type="button" disabled={!online} aria-pressed={playing?.protocol==='http_ts'} onClick={()=>play('http_ts')}>MPEG-TS</button><button type="button" disabled={row.stream?.hls_state!=='running'} aria-pressed={playing?.protocol==='hls'} onClick={()=>play('hls')}>HLS</button><a href={channelPath(id,'output')}>Ver saídas e links</a></div></section><div className="mc-observations"><section className="mc-panel"><div className="mc-status-heading"><span className={'media-status '+mediaState(row)}>{online?'Recebendo':stateLabel(row.stream?.state)}</span><span>{mediaRate(row.stream?.metrics.bits_per_second)}</span></div><div className="mc-media-info"><ChannelProcessingSummary id={id} live={live} stream={row.stream} fallbackProtocol={row.config?.protocol||row.channel.protocols[0]?.id||''}/></div></section><ChannelChart points={points}/></div></div>
+    <div className="mc-overview-grid"><section className="mc-panel mc-player"><div className="mc-player-toolbar"><div><button type="button" disabled={!admin||blocked} onClick={()=>void onOperate([row],receptionRequested(row)?'stop':'start')}>{receptionRequested(row)?<Square size={13}/>:<Play size={13}/>} {receptionRequested(row)?'Parar canal':'Iniciar canal'}</button><button type="button" disabled={!admin||blocked||!receptionRequested(row)} onClick={()=>void onOperate([row],'restart')}><RefreshCw size={13}/>Reconectar</button></div><span className="mc-continuous">Recepção contínua</span></div><div className="mc-player-stage">{playing?<ChannelPlayer embedded source={playing} onClose={closePlayer}/>:<div className="mc-video-placeholder"><Tv size={46}/><button type="button" className="mc-primary" disabled={!online} onClick={()=>play('http_ts')}><Play size={20}/>Reproduzir canal</button><span>{online?'Recepção ativa. Abra o player para assistir.':stateLabel(row.stream?.state)}</span></div>}</div><div className="mc-player-formats"><button type="button" disabled={!online} aria-pressed={playing?.protocol==='http_ts'} onClick={()=>play('http_ts')}>MPEG-TS</button><button type="button" disabled={row.stream?.hls_state!=='running'} aria-pressed={playing?.protocol==='hls'} onClick={()=>play('hls')}>HLS</button><a href={channelPath(id,'output')}>Ver saídas e links</a></div></section><div className="mc-observations"><section className="mc-panel"><ChannelProcessingSummary id={id} live={live} stream={row.stream} fallbackProtocol={row.config?.protocol||row.channel.protocols[0]?.id||''}/></section><ChannelChart points={points}/></div></div>
    </>}
    {row&&route.kind==='channel'&&(route.tab==='input'||route.tab==='transcoder')&&<ChannelProcessing key={id+route.tab} id={id} live={live} blocked={blocked} tab={route.tab}/>}
    {row&&route.kind==='channel'&&route.tab==='output'&&<MediaChannelOutput key={id} row={row} live={live} blocked={blocked}/>}

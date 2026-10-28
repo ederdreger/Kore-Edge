@@ -25,6 +25,13 @@ func TestMediaInfoUsesMeasuredFieldsOnly(t *testing.T) {
 	}
 }
 
+func TestMeasuredTracksPreservePIDsAndMultipleAudioWithoutPrivateTags(t *testing.T) {
+	info := decodeMedia([]byte(`{"streams":[{"index":0,"id":"0xd3","codec_type":"video","codec_name":"h264","width":1920,"height":1080},{"index":1,"id":"0xdd","codec_type":"audio","codec_name":"aac","channels":2,"sample_rate":"48000","bit_rate":"128000","tags":{"language":"por","title":"PRIVATE"}},{"index":2,"id":"0xde","codec_type":"audio","codec_name":"aac","channels":2,"tags":{"language":"https://private.invalid"}}]}`))
+	if info == nil || len(info.Tracks) != 3 || *info.Tracks[0].PID != 211 || *info.Tracks[1].PID != 221 || info.Tracks[1].Language != "por" || info.Tracks[1].Bitrate != 128000 || info.Tracks[2].Language != "" {
+		t.Fatal("measured tracks incorrectly parsed")
+	}
+}
+
 func TestSampleContinuityObservesDamagedInput(t *testing.T) {
 	first, second, third := packet(), packet(), packet()
 	first[3], second[3], third[3] = 0x10, 0x12, 0x13

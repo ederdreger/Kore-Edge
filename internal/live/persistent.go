@@ -46,6 +46,8 @@ func (m *Manager) ServePersistentTS(w http.ResponseWriter, r *http.Request, id s
 		w.WriteHeader(429)
 		return
 	}
+	w, finish := m.observeDelivery(w, id, true)
+	defer finish()
 	w.Header().Set("Content-Type", "video/mp2t")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Accel-Buffering", "no")

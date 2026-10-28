@@ -67,6 +67,8 @@ func (m *Manager) MediaIfActive(w http.ResponseWriter, r *http.Request, id, prot
 		return true
 	}
 	defer release()
+	w, finish := m.observeDelivery(w, id, true)
+	defer finish()
 	w.Header().Set("Content-Type", "video/mp2t")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -146,6 +148,8 @@ func (m *Manager) ServeHLS(w http.ResponseWriter, r *http.Request, id, tail stri
 	url := *r.URL
 	copy.URL = &url
 	copy.URL.Path = "/hls/" + id + "/" + strings.TrimPrefix(tail, "/")
+	w, finish := m.observeDelivery(w, id, false)
+	defer finish()
 	segmenter.ServeHTTP(w, copy)
 }
 
