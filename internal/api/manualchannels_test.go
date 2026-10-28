@@ -9,6 +9,7 @@ import (
 	"kore-edge/internal/accounts"
 	"kore-edge/internal/live"
 	"kore-edge/internal/manualchannels"
+	"kore-edge/internal/output"
 	"kore-edge/internal/playback"
 	"net/http"
 	"net/http/httptest"
@@ -41,7 +42,12 @@ func TestManualChannelsSessionCSRFRevisionAndSecretBoundary(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	h := (&API{Playback: outputLinks, ManualChannels: sources, Live: manager, Accounts: users, PublicOrigin: "https://edge.example"}).Handler()
+	outputs, e := output.New(context.Background(), filepath.Join(directory, "outputs"), manager, outputLinks)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer outputs.Close()
+	h := (&API{Outputs: outputs, Playback: outputLinks, ManualChannels: sources, Live: manager, Accounts: users, PublicOrigin: "https://edge.example"}).Handler()
 	var cookie *http.Cookie
 	csrf := ""
 	call := func(method, path string, value any, token string) *httptest.ResponseRecorder {
@@ -107,6 +113,25 @@ func TestManualChannelsSessionCSRFRevisionAndSecretBoundary(t *testing.T) {
 		t.Fatal("stale metadata overwrite", w.Code)
 	}
 	profilePath := "/api/v1/manual-channels/processing?id=" + value.ChannelID
+	outputPath := "/api/v1/live/outputs?id=" + value.ChannelID
+	outputConfig := output.DefaultChannel()
+	outputConfig.Duration = 3
+	outputBody := map[string]any{"channel_id": value.ChannelID, "revision": 0, "channel": outputConfig, "confirmed": true}
+	if w = call("POST", "/api/v1/live/outputs", outputBody, ""); w.Code != 403 {
+		t.Fatal("output settings bypassed CSRF", w.Code)
+	}
+	if w = call("POST", "/api/v1/live/outputs", outputBody, csrf); w.Code != 200 {
+		t.Fatal("output settings save", w.Code, w.Body.String())
+	}
+	if manager.Snapshot().Configuration.Generation != generation {
+		t.Fatal("output configuration restarted ingest")
+	}
+	if w = call("POST", "/api/v1/live/outputs", outputBody, csrf); w.Code != 409 {
+		t.Fatal("stale output settings", w.Code)
+	}
+	if w = call("GET", outputPath, nil, ""); w.Code != 200 || bytes.Contains(w.Body.Bytes(), []byte("synthetic-password")) {
+		t.Fatal("output inventory failed or leaked origin", w.Code)
+	}
 	if w = call("GET", profilePath, nil, ""); w.Code != 200 || bytes.Contains(w.Body.Bytes(), []byte("synthetic-password")) {
 		t.Fatal("profile read or secret boundary", w.Code)
 	}
@@ -151,6 +176,12 @@ func TestManualChannelsSessionCSRFRevisionAndSecretBoundary(t *testing.T) {
 		t.Fatal("viewer creation", w.Code)
 	}
 	login("reader")
+	if w = call("GET", outputPath, nil, ""); w.Code != 403 {
+		t.Fatal("viewer output credentials", w.Code)
+	}
+	if w = call("POST", "/api/v1/live/outputs", outputBody, csrf); w.Code != 403 {
+		t.Fatal("viewer output write", w.Code)
+	}
 	if w = call("GET", profilePath, nil, ""); w.Code != 403 {
 		t.Fatal("viewer read protected profile", w.Code)
 	}

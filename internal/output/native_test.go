@@ -1,6 +1,7 @@
 package output
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -22,6 +23,18 @@ import (
 	"testing"
 	"time"
 )
+
+type nativeDiagnostics struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (d *nativeDiagnostics) Write(p []byte) (int, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.b.Write(p)
+}
+func (d *nativeDiagnostics) String() string { d.mu.Lock(); defer d.mu.Unlock(); return d.b.String() }
 
 type nativeCatalog struct {
 	tool    string
@@ -118,6 +131,17 @@ func TestNativeOutputsDASHRTSPRTMPAndEncryptedSRTShareOneSyntheticOrigin(t *test
 	}
 	defer s.Close()
 	s.mu.Lock()
+	diagnostic := &nativeDiagnostics{}
+	s.command = func(ctx context.Context, tool string, args ...string) *exec.Cmd {
+		for i, v := range args {
+			if v == "quiet" {
+				args[i] = "error"
+			}
+		}
+		cmd := exec.CommandContext(ctx, tool, args...)
+		cmd.Stderr = diagnostic
+		return cmd
+	}
 	s.mtx = mtx
 	s.ffmpeg = ffmpeg
 	s.ffprobe = probe
@@ -146,7 +170,8 @@ func TestNativeOutputsDASHRTSPRTMPAndEncryptedSRTShareOneSyntheticOrigin(t *test
 	}
 	if !ready {
 		v := s.Snapshot("synthetic")
-		t.Fatalf("outputs not ready: bridge=%s feed=%s DASH=%s", v.Status.Bridge, v.Status.Feed, v.Status.DASH)
+		t.Errorf("outputs not ready: bridge=%s feed=%s DASH=%s", v.Status.Bridge, v.Status.Feed, v.Status.DASH)
+		t.Fatal(diagnostic.String())
 	}
 	links := s.Links("synthetic")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

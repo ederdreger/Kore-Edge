@@ -37,7 +37,7 @@ export function MediaChannelOutput({row,live,blocked}:{row:MediaRow;live:Live;bl
    const needsHLS=hls||options.dash;
    const changed=needsHLS!==!!row.config?.hls||JSON.stringify(udp)!==JSON.stringify(row.config?.udp);
    if(changed){const channel={...row.config,channel_id:id,protocol:row.config?.protocol||row.channel.protocols[0]?.id,hls:needsHLS,resume:row.config?.resume||false,udp};await live.action({action:'save',channel,tools:live.view.configuration.tools.ffmpeg?live.view.configuration.tools:cap?.tools,generation,manual_revision:manual,confirmed:true})}
-   const result=await live.call('POST','live/outputs?id='+encodeURIComponent(id),{revision:view.revision,channel:options,network,confirmed:true});
+   const result=await live.call('POST','live/outputs',{channel_id:id,revision:view.revision,channel:options,network,confirmed:true});
    if(!mounted.current)return;setView(result.configuration);setOptions(result.configuration.channel);setNetwork(result.configuration.network);setURLs(result.links||{});setHLS(needsHLS);setDirty(false);setMessage('Saídas salvas. Acompanhe o estado de cada protocolo. Nenhuma porta de firewall ou interface de rede foi alterada.');await live.refresh();setReload(v=>v+1);
   }catch(e){if(mounted.current){setError((e as Error).message+' Recarregue para conferir o que foi salvo antes de tentar novamente.');await live.refresh()}}finally{lock.current=false;if(mounted.current)setBusy(false)}
  }

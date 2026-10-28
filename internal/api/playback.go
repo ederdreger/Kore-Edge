@@ -154,6 +154,10 @@ func (a *API) externalPlayback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	raw, id, tail := parts[0], parts[1], parts[2]
+	if embedPage && (len(parts) != 3 || (tail != "embed.html" && tail != "embed.js" && tail != "hls.js")) {
+		w.WriteHeader(404)
+		return
+	}
 	segmented := len(parts) == 4
 	isHLS := tail == "index.m3u8" || playbackSegment.MatchString(tail) || segmented || embedPage
 	if !embedPage && !segmented && tail != "media_info.json" && tail != "stream.ts" && tail != "index.m3u8" && !playbackSegment.MatchString(tail) {

@@ -25,7 +25,21 @@ func (a *API) outputsHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(503)
 		return
 	}
+	var input struct {
+		ChannelID string          `json:"channel_id"`
+		Revision  uint64          `json:"revision"`
+		Channel   output.Channel  `json:"channel"`
+		Network   *output.Network `json:"network"`
+		Confirmed bool            `json:"confirmed"`
+	}
+	if r.Method == "POST" && (!setupBody(r, &input) || !input.Confirmed) {
+		w.WriteHeader(400)
+		return
+	}
 	id := r.URL.Query().Get("id")
+	if r.Method == "POST" {
+		id = input.ChannelID
+	}
 	known := false
 	view := a.Live.Snapshot()
 	if view.Catalog.Catalog != nil {
@@ -45,16 +59,6 @@ func (a *API) outputsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method != "POST" {
 		w.WriteHeader(405)
-		return
-	}
-	var input struct {
-		Revision  uint64          `json:"revision"`
-		Channel   output.Channel  `json:"channel"`
-		Network   *output.Network `json:"network"`
-		Confirmed bool            `json:"confirmed"`
-	}
-	if !setupBody(r, &input) || !input.Confirmed {
-		w.WriteHeader(400)
 		return
 	}
 	err := a.Accounts.ChannelChange(actor, "live_config", func() error { return a.Outputs.Save(id, input.Channel, input.Network, input.Revision) })

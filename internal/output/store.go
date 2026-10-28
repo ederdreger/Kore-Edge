@@ -77,6 +77,7 @@ type Service struct {
 	directory, runtime, mtx, ffmpeg, ffprobe string
 	data                                     state
 	source                                   Source
+	command                                  func(context.Context, string, ...string) *exec.Cmd
 	keys                                     Keys
 	ctx                                      context.Context
 	cancel                                   context.CancelFunc
@@ -114,7 +115,7 @@ func New(parent context.Context, directory string, source Source, keys Keys) (*S
 		return nil, ErrUnavailable
 	}
 	ctx, cancel := context.WithCancel(parent)
-	s := &Service{directory: directory, source: source, keys: keys, ctx: ctx, cancel: cancel, done: make(chan struct{}), wake: make(chan struct{}, 1), requests: make(chan struct{}, 4), jobs: map[string]*worker{}, status: "disabled", data: state{Version: 1, Channels: map[string]Channel{}}, mtx: tools("mediamtx"), ffmpeg: tools("ffmpeg"), ffprobe: tools("ffprobe")}
+	s := &Service{directory: directory, source: source, keys: keys, command: exec.CommandContext, ctx: ctx, cancel: cancel, done: make(chan struct{}), wake: make(chan struct{}, 1), requests: make(chan struct{}, 4), jobs: map[string]*worker{}, status: "disabled", data: state{Version: 1, Channels: map[string]Channel{}}, mtx: tools("mediamtx"), ffmpeg: tools("ffmpeg"), ffprobe: tools("ffprobe")}
 	path := filepath.Join(directory, "outputs.json")
 	if _, e := os.Lstat(path); !os.IsNotExist(e) {
 		b, e := security.ReadPrivateFile(path, 512*1024)
