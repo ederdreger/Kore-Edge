@@ -31,6 +31,8 @@ func (a *API) liveHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			if kind == "hls" {
 				a.Live.ServeHLS(w, r, parts[0], parts[1])
+			} else if parts[1] == "preview.jpg" {
+				a.Live.ServeThumbnail(w, r, parts[0])
 			} else if parts[1] == "stream.ts" {
 				a.Live.ServeTS(w, r, parts[0])
 			} else {

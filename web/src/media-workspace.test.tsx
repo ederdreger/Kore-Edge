@@ -4,7 +4,8 @@ import {cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/r
 import {AccountContext} from './account-context';
 import {MediaWorkspace} from './media-workspace';
 import type {LiveView} from './live-distribution';
-afterEach(()=>{cleanup();vi.restoreAllMocks();window.history.replaceState(null,'','#media')});
+vi.mock('./preview-engine',()=>({startPreview:()=>()=>{}}));
+afterEach(()=>{cleanup();vi.restoreAllMocks();vi.unstubAllGlobals();window.history.replaceState(null,'','#media')});
 function fixture(role='admin',count=2,running=false){
  window.history.replaceState(null,'','#media');
  const user={id:'synthetic',username:'operador',role,revision:1,disabled:false} as any;
@@ -58,6 +59,17 @@ it('limits page selection to visible rows and provides card view with the same f
  fireEvent.click(screen.getByRole('button',{name:'Visualização em cartões'}));
  expect(screen.queryByRole('table')).toBeNull();
  expect(screen.getByRole('button',{name:'Canal 26'})).toBeTruthy();
+});
+
+it('opens a card preview in the centered dialog and closing never stops reception',async()=>{
+ vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:false,status:503,headers:new Headers()}));
+ const f=fixture('admin',1,true);await screen.findByRole('button',{name:'Canal 1'});
+ fireEvent.click(screen.getByRole('button',{name:'Visualização em cartões'}));
+ fireEvent.click(screen.getByRole('button',{name:'Abrir player de Canal 1'}));
+ const dialog=screen.getByRole('dialog',{name:'Reproduzir Canal 1'});
+ expect(within(dialog).getByRole('region',{name:'Mini player: Canal 1'}).closest('.media-dialog')).toBe(dialog);
+ fireEvent.click(within(dialog).getByRole('button',{name:'Fechar janela'}));
+ expect(screen.queryByRole('dialog')).toBeNull();expect(f.request.mock.calls.every(c=>c[0]==='GET')).toBe(true);
 });
 it('keeps operational switches and registration disabled for viewers',async()=>{
  const f=fixture('viewer');

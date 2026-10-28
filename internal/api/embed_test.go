@@ -65,6 +65,12 @@ func TestCapabilityEmbedAndReadOnlyInfoNeverExposeAdministration(t *testing.T) {
 	if w = get(base+"media_info.json", "same-origin"); w.Code != 200 || !strings.Contains(w.Body.String(), "bits_per_second") || strings.Contains(w.Body.String(), "url") {
 		t.Fatal("read-only info failed", w.Code)
 	}
+	if get("/api/v1/live/media/synthetic/preview.jpg", "same-origin").Code != 401 {
+		t.Fatal("thumbnail accessible without a panel session")
+	}
+	if get(base+"preview.jpg", "same-origin").Code != 404 {
+		t.Fatal("playback capability widened to private thumbnail route")
+	}
 	source.allowed.Store(false)
 	if get(base+"embed.html", "cross-site").Code != 401 {
 		t.Fatal("revoked channel embed")
