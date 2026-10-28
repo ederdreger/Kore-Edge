@@ -138,7 +138,14 @@ type processInput struct {
 
 func (p *processInput) Read(b []byte) (int, error) { return p.output.Read(b) }
 func (p *processInput) Close() error {
-	p.once.Do(func() { p.cancel(); p.server.Close(); p.output.Close(); <-p.done })
+	p.once.Do(func() {
+		p.cancel()
+		if p.server != nil {
+			p.server.Close()
+		}
+		p.output.Close()
+		<-p.done
+	})
 	return nil
 }
 func executable(raw string) bool {

@@ -380,6 +380,14 @@ somente essa saida, sem descartar pacotes dentro de segmentos aparentemente
 validos. O supervisor prepara novamente o HLS a partir do fluxo compartilhado,
 sem abrir outra origem. A tela informa Recuperando saida HLS durante a tentativa.
 
+Entradas SRT manuais usam FFmpeg/libsrt quando FFmpeg esta configurado, com
+remux em copy: video/audio nao sao recodificados. Endpoint e opcoes seguem por
+stdin; IP e validado/fixado antes de abrir. Processos compartilham o limite de
+entradas HLS/SRT e usam uma thread de codec. A visao geral identifica o receptor.
+Sem FFmpeg configurado, o caminho legado GoSRT continua disponivel; a integracao
+assinada Kore Play conserva seu receptor existente. Esta mudanca nao promete
+recuperar pacotes que a origem ou a rede nao entregaram.
+
 ### Orçamento de processos de mídia
 
 O agente usa, por padrão, duas CPUs lógicas para o runtime Go, limite suave de

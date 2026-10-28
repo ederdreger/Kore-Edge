@@ -36,6 +36,7 @@ type SRTMediaStats struct {
 type pipelineMedia struct {
 	input, output *MediaInfo
 	srt           func() *SRTMediaStats
+	receiver      string
 }
 
 func srtMediaStats(reader io.ReadCloser) func() *SRTMediaStats {

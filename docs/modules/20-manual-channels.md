@@ -147,3 +147,27 @@ tela disponível, cadastros anteriores preservados e nenhuma origem nova iniciad
 automaticamente. A retomada de planos já autorizados segue o contrato de `live`.
 
 A navegação de saídas foi consolidada em **Canais**. Use a engrenagem ou a engrenagem do canal para preparar cada canal; os endereços antigos `#udp` e `#hls` abrem essa tela. A janela abre antes da consulta de ferramentas e permite repetir uma consulta que falhou. Inventário indisponível impede UDP, sem inventar interfaces ou alterar o sandbox do serviço.
+
+## Receptor SRT manual
+
+Quando FFmpeg esta configurado, a entrada manual SRT usa FFmpeg com libsrt.
+O processo recebe o destino e as opcoes por um manifesto privado em stdin;
+credenciais e stream ID nao entram em argv, arquivos temporarios ou logs.
+O destino passa pela mesma validacao de IP/DNS e e fixado antes da abertura.
+O manifesto admite somente opcoes SRT validadas, sem caminhos de arquivos.
+
+O receptor remuxa MPEG-TS com `-c copy`, preservando os codecs. Transcodificacao
+continua dependendo do perfil escolhido pelo operador. O processo e encerrado
+junto com o canal e sua vaga e devolvida; saturacao da capacidade de entradas
+HLS/SRT espera com backoff, sem abrir fontes adicionais. O FFmpeg precisa ter
+suporte a libsrt; nenhuma instalacao de pacotes ocorre durante a recepcao.
+
+A visao geral informa **Receptor SRT: FFmpeg/libsrt**. Contadores internos do
+receptor Go nao sao apresentados como se fossem metricas do libsrt. Sem FFmpeg
+configurado, o receptor Go legado permanece; o transporte assinado Kore Play
+nao e alterado por esta etapa.
+
+Aceite automatizado: origem sintetica SRT em loopback, stream ID `#!::`
+preservado, texto com aspas/espacos em segredo sintetico, recepcao criptografada,
+remux TS sem dados privados em argv, protecao contra injecao no manifesto e
+DNS rebind, encerramento idempotente e liberacao da capacidade.

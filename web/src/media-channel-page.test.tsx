@@ -25,7 +25,7 @@ function fixture({existing=false,failSave=false,viewer=false,tab='overview',acti
  const view=()=>({manual_revision:revision,configuration:{generation:1,tools:{ffmpeg:'',ffprobe:''},channels:source?[{channel_id:id,protocol:source.protocol,resume:true,hls:false}]:[]},catalog:{available:true,configured:false,last_sync:'',catalog:{partner_name:'',channels:source?[{id,name:source.name,category:'',outputs:['hls','udp'],protocols:[{id:source.protocol,label:'HTTP MPEG-TS',path:'/synthetic'}]}]:[]}},streams:source?[{channel_id:id,protocol:source.protocol,state:'running',started_at:new Date().toISOString(),startup_ms:1,attempts:1,interruptions:0,udp_state:'disabled',hls_state:'disabled',metrics:{bytes:1316,bits_per_second:1000000,subscribers:0,last_packet_at:new Date().toISOString()}}]:[],max_active:16});
  const inventory=()=>({revision,channels:source?[source]:[]});
  const request=vi.fn(async(method:string,path:string,body?:any)=>{
-  if(path.startsWith('/api/v1/manual-channels/processing?'))return new Response(JSON.stringify({revision,local:true,active_key:'primary',input_media:{video:'hevc',audio:'ac3',width:1920,height:1080,measured_at:new Date().toISOString()},output_media:{video:'h264',audio:'aac',width:1280,height:720,measured_at:new Date().toISOString()},transcode:{mode:'h264',device:'cpu'},inputs:[{key:'primary',address:source?.address,protocol:activeProtocol,interface:'',local_ip:''}]}));
+  if(path.startsWith('/api/v1/manual-channels/processing?'))return new Response(JSON.stringify({revision,local:true,active_key:'primary',input_receiver:'FFmpeg/libsrt',input_media:{video:'hevc',audio:'ac3',width:1920,height:1080,measured_at:new Date().toISOString()},output_media:{video:'h264',audio:'aac',width:1280,height:720,measured_at:new Date().toISOString()},transcode:{mode:'h264',device:'cpu'},inputs:[{key:'primary',address:source?.address,protocol:activeProtocol,interface:'',local_ip:''}]}));
  if(path==='/api/v1/manual-channels/encoders')return new Response(JSON.stringify({devices:[],max_concurrent:2,warning:''}));
  if(path==='/api/v1/live/capabilities')return new Response(JSON.stringify({tools:{ffmpeg:'',ffprobe:''},interfaces:[{name:'eth-lab',up:true,multicast:true,ipv4:['192.0.2.10']}]}));
   if(path==='/api/v1/manual-channels'){
@@ -135,6 +135,7 @@ it('rejects malformed channel routes and never interprets a URL as a channel id'
 it('shows active SRT and distinct measured input/output formats instead of the legacy source protocol',async()=>{
  fixture({existing:true,activeProtocol:'srt'});
  await screen.findByText('SRT');
+ expect(screen.getByText('Receptor SRT: FFmpeg/libsrt')).toBeTruthy();
  expect(screen.getByText('Vídeo: HEVC · 1920 × 1080')).toBeTruthy();
  expect(screen.getByText('Vídeo: H264 · 1280 × 720')).toBeTruthy();
  expect(screen.getByText('Áudio: AC3')).toBeTruthy();expect(screen.getByText('Áudio: AAC')).toBeTruthy();
