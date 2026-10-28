@@ -179,7 +179,8 @@ func TestNativeOutputsDASHRTSPRTMPAndEncryptedSRTShareOneSyntheticOrigin(t *test
 	}))
 	defer server.Close()
 	links["dash"] = server.URL + "/index.mpd"
-	for _, protocol := range []string{"dash", "rtsp", "rtmp", "srt"} {
+	links["cmaf"] = server.URL + "/master.m3u8"
+	for _, protocol := range []string{"dash", "cmaf", "rtsp", "rtmp", "srt"} {
 		child, stop := context.WithTimeout(ctx, 8*time.Second)
 		args := []string{"-v", "error", "-analyzeduration", "1000000", "-probesize", "1000000"}
 		if protocol == "rtsp" {
@@ -208,7 +209,7 @@ func TestNativeOutputsDASHRTSPRTMPAndEncryptedSRTShareOneSyntheticOrigin(t *test
 		if !video || !audio {
 			t.Fatal(protocol, "lost expected synthetic tracks")
 		}
-		t.Log(protocol + " decoded H.264/AAC")
+		t.Log(protocol + " read H.264/AAC tracks")
 	}
 	// The same MediaMTX path cannot be used to bypass a disabled output protocol.
 	c.RTMP = false

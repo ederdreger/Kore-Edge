@@ -19,7 +19,7 @@ import (
 var segmentName = regexp.MustCompile(`^(index\.mpd|master\.m3u8|media_[0-9]{1,3}\.m3u8|init-[0-9]{1,3}\.m4s|chunk-[0-9]{1,3}-[0-9]{5,20}\.m4s)$`)
 
 func dashArgs(c Channel) []string {
-	return []string{"-hide_banner", "-loglevel", "quiet", "-nostdin", "-protocol_whitelist", "pipe,file", "-f", "mpegts", "-analyzeduration", "1000000", "-probesize", "1000000", "-i", "pipe:0", "-map", "0:v:0", "-map", "0:a:0", "-c", "copy", "-f", "dash", "-seg_duration", strconv.Itoa(c.Duration), "-window_size", strconv.Itoa(c.Segments), "-extra_window_size", "2", "-remove_at_exit", "1", "-use_template", "1", "-use_timeline", "1", "-init_seg_name", "init-$RepresentationID$.m4s", "-media_seg_name", "chunk-$RepresentationID$-$Number%05d$.m4s", "-hls_playlist", "1", "-hls_master_name", "master.m3u8", "index.mpd"}
+	return []string{"-hide_banner", "-loglevel", "quiet", "-nostdin", "-protocol_whitelist", "pipe,file", "-f", "mpegts", "-analyzeduration", "1000000", "-probesize", "1000000", "-i", "pipe:0", "-map", "0:v:0", "-map", "0:a:0", "-c", "copy", "-tag:v", "avc1", "-tag:a", "mp4a", "-f", "dash", "-seg_duration", strconv.Itoa(c.Duration), "-window_size", strconv.Itoa(c.Segments), "-extra_window_size", "2", "-remove_at_exit", "1", "-use_template", "1", "-use_timeline", "1", "-init_seg_name", "init-$RepresentationID$.m4s", "-media_seg_name", "chunk-$RepresentationID$-$Number%05d$.m4s", "-hls_playlist", "1", "-hls_master_name", "master.m3u8", "index.mpd"}
 }
 func (s *Service) packageStream(id string, j *worker) {
 	defer func() {
@@ -210,7 +210,13 @@ func (s *Service) ServeSegment(w http.ResponseWriter, r *http.Request, id, name 
 		w.WriteHeader(404)
 		return
 	}
-	data, e := os.ReadFile(path)
+	f, e := os.Open(path)
+	if e != nil {
+		w.WriteHeader(404)
+		return
+	}
+	defer f.Close()
+	data, e := io.ReadAll(io.LimitReader(f, 8*1024*1024+1))
 	if e != nil || len(data) > 8*1024*1024 {
 		w.WriteHeader(404)
 		return

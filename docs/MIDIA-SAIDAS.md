@@ -49,7 +49,7 @@ O core não cria listeners externos só por abrir a página. Endereços e portas
 
 Há até 32 canais auxiliares simultâneos, com espera explícita para os demais. Empacotadores usam as vagas de saída existentes e liberam recursos no cancelamento. Cada canal limita leitores RTMP/RTSP/SRT entre 1 e 32. Esse número não é uma contagem de usuários HLS e não modifica as cotas anteriores de TS/HLS. Segmentos são limitados a 8 MiB por resposta, quatro respostas segmentadas simultâneas e 128 MiB/100 arquivos por empacotador. Estouro encerra essa preparação, sem parar o ingest. O processo MediaMTX usa GOMAXPROCS=2 e GOMEMLIMIT=256MiB; os limites do serviço do core continuam valendo. Falhas do auxiliar usam reconexão com espera limitada a 30 segundos.
 
-API administrativa: `GET/POST /api/v1/live/outputs?id=ID`. GET retorna revisão, rede, opções do canal, disponibilidade de ferramentas, estados e links dos protocolos configurados. POST exige revisão, `confirmed`, objeto `channel` completo e `network` opcional. Edição de um canal não estende grants da matriz.
+API administrativa: `GET /api/v1/live/outputs?id=ID` e `POST /api/v1/live/outputs`. GET retorna revisão, rede, opções do canal, disponibilidade de ferramentas, estados e links dos protocolos configurados. POST exige `channel_id`, revisão, `confirmed`, objeto `channel` completo e `network` opcional. Edição de um canal não estende grants da matriz.
 
 ## Validação
 
