@@ -23,7 +23,8 @@ import (
 
 type nativeVLCCatalog struct {
 	vlcCatalog
-	tool string
+	tool  string
+	delay time.Duration
 }
 type nativeVLCInput struct {
 	io.ReadCloser
@@ -38,6 +39,13 @@ func (p *nativeVLCInput) Close() error {
 }
 func (c *nativeVLCCatalog) OpenHTTP(parent context.Context, _ string) (io.ReadCloser, error) {
 	c.opens.Add(1)
+	if c.delay > 0 {
+		select {
+		case <-parent.Done():
+			return nil, parent.Err()
+		case <-time.After(c.delay):
+		}
+	}
 	ctx, cancel := context.WithCancel(parent)
 	cmd := exec.CommandContext(ctx, c.tool, hls.SyntheticArgs(true)...)
 	mediaresources.Configure(cmd)
@@ -85,7 +93,7 @@ func TestVLCNativeHLSPlaylistAndSegmentWithoutCookies(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	c := &nativeVLCCatalog{tool: tool}
+	c := &nativeVLCCatalog{tool: tool, delay: 4 * time.Second}
 	c.allowed.Store(true)
 	m, e := live.New(context.Background(), filepath.Join(dir, "live"), c)
 	if e != nil {

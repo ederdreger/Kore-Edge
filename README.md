@@ -432,3 +432,5 @@ Salvar reinicia somente o canal alterado que já estava recebendo; canais pausado
 ### Página Saídas: URLs e protocolos
 
 **Mídia ? canal ? Saídas** reúne TS/HLS permanentes, DASH e HLS CMAF, player incorporável, API de estado, RTMP/RTSP/SRT e configuração UDP. Os protocolos adicionais são optativos e usam o mesmo fluxo recebido. RTMP/RTSP/SRT exigem MediaMTX opcional e IP/portas confirmados no painel; nada abre listeners externos por padrão. Veja [uso, instalação opcional, limites, segurança e validação](docs/MIDIA-SAIDAS.md).
+
+A coleta inicial de codecs do HLS começa no primeiro pacote efetivamente recebido, sem descontar o tempo de abertura da origem/encoder. Se uma amostra inicial não identificar os codecs, a validação volta a ser tentada com intervalo limitado, mantendo a recepção TS contínua. Um ensaio nativo com abertura atrasada verifica playlist, segmento H.264/AAC e uma única origem.
