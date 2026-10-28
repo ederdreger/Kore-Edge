@@ -63,14 +63,43 @@ O MPEG-TS contém as faixas configuradas. HLS e mini player usam a primeira faix
 esta etapa não gera variantes HLS adaptativas. Codecs H.265/AV1 não são oferecidos
 neste perfil H.264. Verifique capacidade e compatibilidade antes de salvar.
 
-## Funções da referência ainda indisponíveis
+## Publicação, reserva, logotipo e cluster
 
-Publicação push, vídeo de reserva em arquivo, gravação da reserva e ingestão em
-cluster dependem de módulos ainda ausentes. Os tempos individuais de áudio/vídeo
-exigem monitoramento de quadros, diferente do watchdog de payload atual.
-Logotipo depende de uma biblioteca privada de imagens ainda ausente. A tela
-identifica essas limitações; não grava opções sem efeito. O modo de processo
-interno do produto de referência não é reproduzido: o Edge preserva isolamento.
+O operador autorizou o uso do HTTPS existente, sem novas portas, e cadastro dos
+arquivos por URL. Importar copia o arquivo para armazenamento privado após
+validar formato e limites. Não mantém a URL no perfil nem acessa URLs por FFmpeg.
+PNG/JPEG: até 2 MB/2048×2048, regravados como PNG. MP4: H.264/AAC, até 64 MB/5 min,
+inspecionado por ffprobe. Biblioteca: 20 arquivos/512 MB, uma importação simultânea.
+Sem redirecionamentos, proxy de ambiente, loopback ou endereços locais reservados.
+
+**Publicação** gera uma credencial própria por canal ao salvar e acrescenta uma
+entrada `publish://incoming`. Inicie o canal; o emissor envia MPEG-TS por POST/PUT
+para o endpoint exibido, usando `Authorization: Bearer TOKEN`. O token não faz
+parte da URL. Há uma publicação por canal e até 16 receptores aguardando push.
+Desabilitar publicação e salvar revoga o acesso. Sem senha administrativa.
+
+**Reserva** repete o MP4 em tempo real se a origem falhar. A cada dez segundos,
+verifica as entradas para recuperar uma origem que voltou. Os tempos de dados,
+vídeo e áudio monitoram payload/PES, não imagem congelada ou qualidade visual.
+Os limites internos de conexão dos protocolos continuam valendo. A reserva usa
+o perfil do canal; aplicar esse perfil é obrigatório se a transcodificação estiver
+ativa. Gravação de reserva é privada, limitada a 32 MB/canal e 16 canais; atingir
+o limite encerra somente a gravação, sem parar a transmissão.
+
+**Logotipo** seleciona um PNG privado por faixa. Posição, tamanho e margem são
+aplicados por overlay antes da codificação. Só arquivos importados e validados
+podem ser usados; caminhos e filtros arbitrários são rejeitados.
+
+**Cluster** exporta o fluxo já compartilhado por HTTPS usando a credencial do
+canal. No destino, adicione uma entrada **Cluster Edge HTTPS**, URL do endpoint,
+token e, para certificado privado, SHA256 confirmado pelo operador. Sem pin,
+exige certificado de autoridade confiável. Endereços são resolvidos e validados
+na conexão, sem redirecionamentos. Um salto apenas: não reexporta um canal que
+está recebendo de outro cluster, impedindo ciclos entre os Edges.
+
+Estes recursos permanecem desativados até salvar a revisão no painel. Drivers,
+interfaces e firewall não são alterados. O processo interno do produto de
+referência não é reproduzido: o Edge preserva isolamento em subprocessos.
 
 ## Validação e aceite
 

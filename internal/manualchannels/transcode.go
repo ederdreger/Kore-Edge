@@ -156,6 +156,17 @@ func (s *Service) encodeReserved(parent context.Context, input io.ReadCloser, ff
 		input.Close()
 		return nil, ErrUnavailable
 	}
+	t.logoPaths = map[string]string{}
+	for _, track := range t.Tracks {
+		if track.Logo != "" {
+			path, e := s.assetPath(track.Logo, "logo")
+			if e != nil {
+				input.Close()
+				return nil, e
+			}
+			t.logoPaths[track.Logo] = path
+		}
+	}
 	ctx, cancel := context.WithCancel(parent)
 	cmd := s.command(ctx, ffmpeg, transcodeArgs(t)...)
 	mediaresources.Configure(cmd)

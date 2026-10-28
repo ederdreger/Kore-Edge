@@ -10,20 +10,25 @@ import (
 
 // Typed controls only: no shell arguments, arbitrary filters or file paths.
 type VideoTrack struct {
-	VideoKbps  int    `json:"video_kbps"`
-	Width      int    `json:"width"`
-	Height     int    `json:"height"`
-	Codec      string `json:"codec,omitempty"`
-	Profile    string `json:"profile,omitempty"`
-	Preset     string `json:"preset,omitempty"`
-	Level      string `json:"level,omitempty"`
-	BFrames    int    `json:"bframes,omitempty"`
-	Refs       int    `json:"refs,omitempty"`
-	SAR        string `json:"sar,omitempty"`
-	Resize     string `json:"resize,omitempty"`
-	Background string `json:"background,omitempty"`
-	Interlace  bool   `json:"interlace,omitempty"`
-	OpenGOP    bool   `json:"open_gop,omitempty"`
+	VideoKbps    int    `json:"video_kbps"`
+	Width        int    `json:"width"`
+	Height       int    `json:"height"`
+	Codec        string `json:"codec,omitempty"`
+	Profile      string `json:"profile,omitempty"`
+	Preset       string `json:"preset,omitempty"`
+	Level        string `json:"level,omitempty"`
+	BFrames      int    `json:"bframes,omitempty"`
+	Refs         int    `json:"refs,omitempty"`
+	SAR          string `json:"sar,omitempty"`
+	Resize       string `json:"resize,omitempty"`
+	Background   string `json:"background,omitempty"`
+	Interlace    bool   `json:"interlace,omitempty"`
+	OpenGOP      bool   `json:"open_gop,omitempty"`
+	Logo         string `json:"logo,omitempty"`
+	LogoPosition string `json:"logo_position,omitempty"`
+	LogoWidth    int    `json:"logo_width,omitempty"`
+	LogoHeight   int    `json:"logo_height,omitempty"`
+	LogoMargin   int    `json:"logo_margin,omitempty"`
 }
 
 func oneOf(v string, values ...string) bool {
@@ -82,6 +87,9 @@ func validTranscode(t Transcode) bool {
 		return false
 	}
 	for _, v := range tracks {
+		if v.Logo != "" && (!assetID.MatchString(v.Logo) || !strings.HasSuffix(v.Logo, ".png") || !oneOf(v.LogoPosition, "", "tl", "tr", "bl", "br") || v.LogoWidth < 0 || v.LogoWidth > 1024 || v.LogoHeight < 0 || v.LogoHeight > 1024 || v.LogoMargin < 0 || v.LogoMargin > 1024 || v.LogoWidth > v.Width || v.LogoHeight > v.Height || v.LogoMargin >= v.Width || v.LogoMargin >= v.Height) {
+			return false
+		}
 		if v.VideoKbps < 200 || v.VideoKbps > 30000 || v.Width < 160 || v.Width > 3840 || v.Width%2 != 0 || v.Height < 90 || v.Height > 2160 || v.Height%2 != 0 {
 			return false
 		}
@@ -141,12 +149,58 @@ func trackFilter(t Transcode, v VideoTrack) string {
 func configuredTranscodeArgs(t Transcode) []string {
 	args := append([]string{"-hide_banner", "-loglevel", "quiet", "-nostdin"}, deviceArgs(t.Device)...)
 	args = append(args, "-protocol_whitelist", "pipe", "-f", "mpegts", "-analyzeduration", "2000000", "-probesize", "2000000", "-i", "pipe:0")
+	logoInputs := map[int]int{}
+	nextInput := 1
+	for i, v := range videoTracks(t) {
+		if path := t.logoPaths[v.Logo]; v.Logo != "" && path != "" {
+			logoInputs[i] = nextInput
+			nextInput++
+			args = append(args, "-protocol_whitelist", "file,pipe", "-loop", "1", "-i", path)
+		}
+	}
+	if len(logoInputs) > 0 {
+		filters := []string{}
+		for i, v := range videoTracks(t) {
+			label := "v" + strconv.Itoa(i)
+			cpu := t
+			cpu.Device = "cpu"
+			filter := "[0:v:0]" + trackFilter(cpu, v)
+			if input, ok := logoInputs[i]; ok {
+				width, height := v.LogoWidth, v.LogoHeight
+				if width == 0 {
+					width = v.Width / 8
+				}
+				if height == 0 {
+					height = -1
+				}
+				m := strconv.Itoa(v.LogoMargin)
+				x, y := m, m
+				if v.LogoPosition == "tr" || v.LogoPosition == "br" {
+					x = "main_w-overlay_w-" + m
+				}
+				if v.LogoPosition == "bl" || v.LogoPosition == "br" {
+					y = "main_h-overlay_h-" + m
+				}
+				filter += "[base" + strconv.Itoa(i) + "];[" + strconv.Itoa(input) + ":v:0]scale=" + strconv.Itoa(width) + ":" + strconv.Itoa(height) + "[logo" + strconv.Itoa(i) + "];[base" + strconv.Itoa(i) + "][logo" + strconv.Itoa(i) + "]overlay=" + x + ":" + y + ":shortest=1"
+			}
+			if strings.HasPrefix(t.Device, "vaapi:") {
+				filter += ",format=nv12,hwupload"
+			}
+			filter += "[" + label + "]"
+			filters = append(filters, filter)
+		}
+		args = append(args, "-filter_complex", strings.Join(filters, ";"))
+	}
 	if t.VideoCopy {
 		args = append(args, "-map", "0:v:0", "-c:v", "copy")
 	} else {
 		for i, v := range videoTracks(t) {
 			suffix := ":v:" + strconv.Itoa(i)
-			args = append(args, "-map", "0:v:0", "-filter"+suffix, trackFilter(t, v))
+			if len(logoInputs) > 0 {
+				args = append(args, "-map", "[v"+strconv.Itoa(i)+"]")
+			} else {
+				args = append(args, "-map", "0:v:0", "-filter"+suffix, trackFilter(t, v))
+			}
 			encoder, preset := "libx264", "veryfast"
 			if strings.HasPrefix(t.Device, "nvidia:") {
 				encoder, preset = "h264_nvenc", "p4"

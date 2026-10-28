@@ -23,3 +23,9 @@ it('removes CPU-only settings when moving to VAAPI and keeps pure copy available
  expect((screen.getByLabelText('Predefinição · faixa 1') as HTMLSelectElement).disabled).toBe(true);
  fireEvent.click(screen.getByRole('button',{name:'Desativar transcodificação'}));expect(value()).toEqual({mode:'copy'});
 });
+it('returns to pure copy when both input-copy controls are selected',()=>{
+ fixture();fireEvent.click(screen.getAllByRole('checkbox',{name:'Copiar da entrada'})[1]);
+ expect(value().video_copy).toBe(true);
+ fireEvent.click(screen.getAllByRole('checkbox',{name:'Copiar da entrada'})[0]);
+ expect(value()).toEqual({mode:'copy'});
+});

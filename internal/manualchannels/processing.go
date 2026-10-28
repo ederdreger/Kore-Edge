@@ -26,8 +26,11 @@ type Input struct {
 	Interface     string `json:"interface,omitempty"`
 	LocalIP       string `json:"local_ip,omitempty"`
 	SourceTimeout int    `json:"source_timeout,omitempty"`
+	Token         string `json:"token,omitempty"`
+	Certificate   string `json:"certificate,omitempty"`
 }
 type Transcode struct {
+	logoPaths     map[string]string
 	Mode          string       `json:"mode"`
 	Device        string       `json:"device,omitempty"`
 	VideoKbps     int          `json:"video_kbps,omitempty"`
@@ -48,9 +51,10 @@ type Transcode struct {
 	Tracks        []VideoTrack `json:"tracks,omitempty"`
 }
 type Processing struct {
-	Base      string    `json:"base"`
-	Inputs    []Input   `json:"inputs"`
-	Transcode Transcode `json:"transcode"`
+	Base      string      `json:"base"`
+	Inputs    []Input     `json:"inputs"`
+	Transcode Transcode   `json:"transcode"`
+	Policy    InputPolicy `json:"policy,omitempty"`
 }
 type processingState struct {
 	Version  int                   `json:"version"`
@@ -64,6 +68,7 @@ type InputView struct {
 	Interface     string `json:"interface"`
 	LocalIP       string `json:"local_ip"`
 	SourceTimeout int    `json:"source_timeout,omitempty"`
+	Certificate   string `json:"certificate,omitempty"`
 }
 type ProcessingView struct {
 	Revision      uint64         `json:"revision"`
@@ -75,6 +80,8 @@ type ProcessingView struct {
 	InputSRT      *SRTMediaStats `json:"input_srt,omitempty"`
 	InputMedia    *MediaInfo     `json:"input_media,omitempty"`
 	OutputMedia   *MediaInfo     `json:"output_media,omitempty"`
+	Policy        InputPolicy    `json:"policy"`
+	BackupActive  bool           `json:"backup_active"`
 }
 
 var processingID = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,80}$`)
@@ -101,7 +108,7 @@ func (s *Service) loadProcessing() error {
 		return ErrUnavailable
 	}
 	for id, p := range s.processing.Entries {
-		if !processingID.MatchString(id) || !validateTranscode(p.Transcode) || len(p.Inputs) > 8 || localID.MatchString(id) && (len(p.Inputs) < 1 || !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(p.Base)) || !localID.MatchString(id) && (len(p.Inputs) != 0 || p.Base != "") {
+		if !validPolicy(p.Policy) || !processingID.MatchString(id) || !validateTranscode(p.Transcode) || len(p.Inputs) > 8 || localID.MatchString(id) && (len(p.Inputs) < 1 || !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(p.Base)) || !localID.MatchString(id) && (len(p.Inputs) != 0 || p.Base != "") {
 			return ErrUnavailable
 		}
 		keys := map[string]bool{}
@@ -113,7 +120,7 @@ func (s *Service) loadProcessing() error {
 				return ErrUnavailable
 			}
 			keys[in.Key] = true
-			if _, e := normalize(Source{Name: "Input", URL: in.URL, Protocol: in.Protocol, Interface: in.Interface, LocalIP: in.LocalIP}); e != nil {
+			if _, e := normalizeInput(in); e != nil {
 				return ErrUnavailable
 			}
 		}
@@ -154,8 +161,9 @@ func (s *Service) Processing(id string) (ProcessingView, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p := s.processingLocked(id, c)
-	out := ProcessingView{Revision: s.revisionLocked(), Inputs: []InputView{}, Transcode: p.Transcode, ActiveKey: s.activeInput[id], Local: ok}
+	out := ProcessingView{Revision: s.revisionLocked(), Inputs: []InputView{}, Transcode: p.Transcode, ActiveKey: s.activeInput[id], Local: ok, Policy: p.Policy}
 	if media := s.mediaInfo[id]; media != nil {
+		out.BackupActive = media.backup
 		out.InputMedia, out.OutputMedia = media.input, media.output
 		out.InputReceiver = media.receiver
 		if media.srt != nil {
@@ -163,8 +171,15 @@ func (s *Service) Processing(id string) (ProcessingView, error) {
 		}
 	}
 	for _, in := range p.Inputs {
-		u, _ := parse(in.URL)
-		out.Inputs = append(out.Inputs, InputView{in.Key, safeAddress(u), in.Protocol, in.Interface, in.LocalIP, in.SourceTimeout})
+		address := "publish://incoming"
+		if in.Protocol != "publish" {
+			u, e := parse(in.URL)
+			if e != nil {
+				return ProcessingView{}, ErrUnavailable
+			}
+			address = safeAddress(u)
+		}
+		out.Inputs = append(out.Inputs, InputView{in.Key, address, in.Protocol, in.Interface, in.LocalIP, in.SourceTimeout, in.Certificate})
 	}
 	return out, nil
 }
@@ -172,8 +187,11 @@ func (s *Service) Processing(id string) (ProcessingView, error) {
 // SaveProcessing validates all inputs before writing. Existing secrets are retained by key.
 // A nil inputs argument edits only processing; nil transcode edits only inputs.
 func (s *Service) SaveProcessing(id string, inputs *[]Input, transcode *Transcode, expected uint64) error {
+	return s.SaveProcessingPolicy(id, inputs, transcode, nil, expected)
+}
+func (s *Service) SaveProcessingPolicy(id string, inputs *[]Input, transcode *Transcode, policy *InputPolicy, expected uint64) error {
 	c, local := s.source(id)
-	if !processingID.MatchString(id) || !local && inputs != nil {
+	if !processingID.MatchString(id) || !local && (inputs != nil || policy != nil) {
 		return ErrInvalid
 	}
 	if _, e := s.Processing(id); e != nil {
@@ -213,13 +231,16 @@ func (s *Service) SaveProcessing(id string, inputs *[]Input, transcode *Transcod
 					return ErrInvalid
 				}
 				v.URL = old.URL
+				if v.Token == "" && v.Protocol == "cluster" {
+					v.Token = old.Token
+				}
 			}
-			normalized, e := normalize(Source{Name: "Input", URL: v.URL, Protocol: v.Protocol, Interface: v.Interface, LocalIP: v.LocalIP})
+			normalized, e := normalizeInput(v)
 			if e != nil {
 				return e
 			}
 			if normalized.Protocol == "udp" {
-				if _, e = s.udpTarget(normalized); e != nil {
+				if _, e = s.udpTarget(Source{URL: normalized.URL, Protocol: normalized.Protocol, Interface: normalized.Interface, LocalIP: normalized.LocalIP}); e != nil {
 					return e
 				}
 			}
@@ -229,11 +250,45 @@ func (s *Service) SaveProcessing(id string, inputs *[]Input, transcode *Transcod
 		}
 		p.Inputs = next
 	}
+	if policy != nil {
+		if !validPolicy(*policy) {
+			return ErrInvalid
+		}
+		nextPolicy := *policy
+		nextPolicy.Token = p.Policy.Token
+		if (nextPolicy.Publication || nextPolicy.ClusterExport) && nextPolicy.Token == "" {
+			nextPolicy.Token = random()
+		}
+		if nextPolicy.BackupAsset != "" {
+			if _, e := s.assetPath(nextPolicy.BackupAsset, "backup"); e != nil {
+				return e
+			}
+		}
+		p.Policy = nextPolicy
+	}
+	for _, in := range p.Inputs {
+		if in.Protocol == "publish" && !p.Policy.Publication {
+			return ErrInvalid
+		}
+	}
 	if transcode != nil {
 		if !validateTranscode(*transcode) {
 			return ErrInvalid
 		}
+		for _, v := range transcode.Tracks {
+			if v.Logo != "" {
+				if _, e := s.assetPath(v.Logo, "logo"); e != nil {
+					return e
+				}
+			}
+		}
 		p.Transcode = *transcode
+		if transcode.Mode != "copy" && p.Policy.BackupAsset != "" {
+			p.Policy.BackupTranscode = true
+		}
+	}
+	if p.Policy.BackupAsset != "" && p.Transcode.Mode != "copy" && !p.Policy.BackupTranscode {
+		return ErrInvalid
 	}
 	if reflect.DeepEqual(previous, p) {
 		return nil
@@ -329,27 +384,7 @@ func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg,
 			}
 			i := (start + n) % len(p.Inputs)
 			in := p.Inputs[i]
-			candidate := Source{URL: in.URL, Protocol: in.Protocol, Interface: in.Interface, LocalIP: in.LocalIP}
-			switch in.Protocol {
-			case "http_ts":
-				var responseBody io.ReadCloser
-				response, e := s.openHTTP(ctx, in.URL, "")
-				err = e
-				if e == nil {
-					responseBody = response.Body
-				}
-				reader = responseBody
-			case "hls":
-				reader, err = s.openHLS(ctx, candidate, ffmpeg)
-			case "srt":
-				if ffmpeg != "" {
-					reader, err = s.openNativeSRT(ctx, candidate, ffmpeg)
-				} else {
-					reader, err = s.openSRT(ctx, candidate)
-				}
-			case "udp":
-				reader, err = s.openUDP(ctx, candidate)
-			}
+			reader, err = s.openInput(ctx, id, in, ffmpeg)
 			if errors.Is(err, mediaresources.ErrBusy) {
 				return nil, true, err
 			}
@@ -372,6 +407,12 @@ func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg,
 		default:
 			err = ErrInvalid
 		}
+	}
+	if local && reader != nil {
+		reader = watchPackets(ctx, reader, p.Policy.BackupTimeout, p.Policy.VideoTimeout, p.Policy.AudioTimeout)
+	}
+	if local && p.Policy.BackupAsset != "" {
+		reader, err = s.withBackup(ctx, id, p, reader, err, ffmpeg)
 	}
 	if err != nil {
 		return nil, true, err

@@ -28,6 +28,10 @@ func (a *API) manualChannels(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(503)
 		return
 	}
+	if r.URL.Path == "/api/v1/manual-channels/assets" {
+		a.mediaAssets(w, r, actor)
+		return
+	}
 	if r.Method == "GET" && r.URL.Path == "/api/v1/manual-channels" {
 		_ = json.NewEncoder(w).Encode(a.ManualChannels.Inventory())
 		return
@@ -56,12 +60,13 @@ func (a *API) manualChannels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
-		Action    string                    `json:"action"`
-		Revision  uint64                    `json:"revision"`
-		Source    manualchannels.Source     `json:"source"`
-		Confirmed bool                      `json:"confirmed"`
-		Inputs    *[]manualchannels.Input   `json:"inputs"`
-		Transcode *manualchannels.Transcode `json:"transcode"`
+		Action    string                      `json:"action"`
+		Revision  uint64                      `json:"revision"`
+		Source    manualchannels.Source       `json:"source"`
+		Confirmed bool                        `json:"confirmed"`
+		Inputs    *[]manualchannels.Input     `json:"inputs"`
+		Transcode *manualchannels.Transcode   `json:"transcode"`
+		Policy    *manualchannels.InputPolicy `json:"policy"`
 		Metadata  struct {
 			Name        string `json:"name"`
 			Title       string `json:"title"`
@@ -77,7 +82,7 @@ func (a *API) manualChannels(w http.ResponseWriter, r *http.Request) {
 	var e error
 	switch input.Action {
 	case "inputs", "transcode":
-		if !input.Confirmed || input.Action == "inputs" && (input.Inputs == nil || input.Transcode != nil) || input.Action == "transcode" && (input.Transcode == nil || input.Inputs != nil) {
+		if !input.Confirmed || input.Action == "inputs" && (input.Inputs == nil || input.Transcode != nil) || input.Action == "transcode" && (input.Transcode == nil || input.Inputs != nil || input.Policy != nil) {
 			w.WriteHeader(400)
 			return
 		}
@@ -93,7 +98,7 @@ func (a *API) manualChannels(w http.ResponseWriter, r *http.Request) {
 			if input.Transcode != nil && input.Transcode.Mode != "copy" && !a.ManualChannels.CanEncode(r.Context(), tools.FFmpeg, input.Transcode.Device) {
 				return manualchannels.ErrUnavailable
 			}
-			if err := a.ManualChannels.SaveProcessing(input.Source.ID, input.Inputs, input.Transcode, input.Revision); err != nil {
+			if err := a.ManualChannels.SaveProcessingPolicy(input.Source.ID, input.Inputs, input.Transcode, input.Policy, input.Revision); err != nil {
 				return err
 			}
 			if a.ManualChannels.Revision() == input.Revision {

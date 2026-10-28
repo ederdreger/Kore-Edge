@@ -87,6 +87,10 @@ func (a *API) Handler() http.Handler {
 		})
 		protected := a.Accounts.Wrap(a.PublicOrigin, panel)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/api/v1/publish/") || strings.HasPrefix(r.URL.Path, "/api/v1/cluster/") {
+				a.mediaIngest(w, r)
+				return
+			}
 			if strings.HasPrefix(r.URL.Path, "/api/v1/playback/") {
 				a.externalPlayback(w, r)
 				return
