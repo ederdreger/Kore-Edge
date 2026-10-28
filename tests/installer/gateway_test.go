@@ -242,6 +242,22 @@ func testHTTPSGateway(t *testing.T, panel bool) {
 		if e != nil || html.StatusCode != 200 {
 			t.Fatal("login HTML unavailable")
 		}
+		if html.Header.Get("X-Frame-Options") != "DENY" {
+			t.Fatal("dashboard framing protection removed")
+		}
+		for _, tc := range []struct {
+			tail string
+			deny bool
+		}{{"embed.html", false}, {"embed.js", false}, {"hls.js", false}, {"stream.ts", true}, {"cmaf/index.mpd", true}} {
+			response, e := client.Get(base + "/api/v1/playback/p1.synthetic/synthetic/" + tc.tail)
+			if e != nil {
+				t.Fatal(e)
+			}
+			response.Body.Close()
+			if (response.Header.Get("X-Frame-Options") == "DENY") != tc.deny {
+				t.Fatal("wrong framing scope", tc.tail)
+			}
+		}
 		asset := regexp.MustCompile(`src="(/ui/assets/[a-zA-Z0-9_-]+\.js)"`).FindSubmatch(page)
 		if len(asset) != 2 {
 			t.Fatal("module script absent from login HTML")

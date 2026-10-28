@@ -26,6 +26,7 @@ import (
 	"kore-edge/internal/live"
 	"kore-edge/internal/manualchannels"
 	"kore-edge/internal/monitoring"
+	"kore-edge/internal/output"
 	"kore-edge/internal/playback"
 	"kore-edge/internal/provision"
 	"kore-edge/internal/security"
@@ -229,7 +230,14 @@ func servePanel(ctx context.Context, ln net.Listener, store *catalog.Store, engi
 	if users != nil {
 		playbackStore, _ = playback.Open(filepath.Join(users.Directory(), "playback"))
 	}
-	a := &api.API{Playback: playbackStore, ManualChannels: direct, Live: distribution, PartnerCatalog: partnerCatalog, WireGuardCredentials: wgCredentials, Mode: mode, Accounts: users, PublicOrigin: origin, Integration: synchronizer, Security: guard, Catalog: store, Streams: engine, HLS: manager, Monitoring: observer, Provision: registry, ProvisionEdgeID: edgeID}
+	var outputService *output.Service
+	if users != nil && distribution != nil && playbackStore != nil {
+		outputService, _ = output.New(ctx, filepath.Join(users.Directory(), "outputs"), distribution, playbackStore)
+		if outputService != nil {
+			defer outputService.Close()
+		}
+	}
+	a := &api.API{Outputs: outputService, Playback: playbackStore, ManualChannels: direct, Live: distribution, PartnerCatalog: partnerCatalog, WireGuardCredentials: wgCredentials, Mode: mode, Accounts: users, PublicOrigin: origin, Integration: synchronizer, Security: guard, Catalog: store, Streams: engine, HLS: manager, Monitoring: observer, Provision: registry, ProvisionEdgeID: edgeID}
 	server := a.Server()
 	server.TLSConfig = guard.TLSConfig()
 	server.ErrorLog = log.New(io.Discard, "", 0)

@@ -13,6 +13,7 @@ import (
 	"kore-edge/internal/manualchannels"
 	"kore-edge/internal/monitoring"
 	"kore-edge/internal/multicast"
+	"kore-edge/internal/output"
 	"kore-edge/internal/playback"
 	"kore-edge/internal/provision"
 	"kore-edge/internal/security"
@@ -26,6 +27,7 @@ import (
 )
 
 type API struct {
+	Outputs               *output.Service
 	Playback              *playback.Store
 	ManualChannels        *manualchannels.Service
 	Live                  *live.Manager
@@ -57,6 +59,10 @@ func (a *API) Handler() http.Handler {
 	handler := guard.Wrap(a.routes())
 	if a.Accounts != nil {
 		panel := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/api/v1/live/outputs" {
+				a.outputsHandler(w, r)
+				return
+			}
 			if r.URL.Path == "/api/v1/live/playback-links" {
 				a.playbackLinks(w, r)
 				return
