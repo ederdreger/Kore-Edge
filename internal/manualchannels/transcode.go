@@ -141,16 +141,31 @@ func transcodeArgs(t Transcode) []string {
 	}
 	return append(args, "-mpegts_flags", "+resend_headers+initial_discontinuity", "-flush_packets", "1", "-f", "mpegts", "pipe:1")
 }
+func (s *Service) reserveEncoder() (func(), error) {
+	select {
+	case s.transcodeSlots <- struct{}{}:
+		var once sync.Once
+		return func() { once.Do(func() { <-s.transcodeSlots }) }, nil
+	default:
+		return nil, mediaresources.ErrTranscodeBusy
+	}
+}
 func (s *Service) transcode(parent context.Context, input io.ReadCloser, ffmpeg string, t Transcode) (io.ReadCloser, error) {
+	release, err := s.reserveEncoder()
+	if err != nil {
+		input.Close()
+		return nil, err
+	}
+	result, err := s.encodeReserved(parent, input, ffmpeg, t, release)
+	if err != nil {
+		release()
+	}
+	return result, err
+}
+func (s *Service) encodeReserved(parent context.Context, input io.ReadCloser, ffmpeg string, t Transcode, release func()) (io.ReadCloser, error) {
 	if !executable(ffmpeg) || !validateTranscode(t) {
 		input.Close()
 		return nil, ErrUnavailable
-	}
-	select {
-	case s.transcodeSlots <- struct{}{}:
-	default:
-		input.Close()
-		return nil, mediaresources.ErrTranscodeBusy
 	}
 	ctx, cancel := context.WithCancel(parent)
 	cmd := s.command(ctx, ffmpeg, transcodeArgs(t)...)
@@ -165,7 +180,6 @@ func (s *Service) transcode(parent context.Context, input io.ReadCloser, ffmpeg 
 		input.Close()
 		reader.Close()
 		writer.Close()
-		<-s.transcodeSlots
 		return nil, ErrUnavailable
 	}
 	p := &encodedInput{reader: reader, input: input, cancel: cancel, done: make(chan struct{})}
@@ -178,7 +192,7 @@ func (s *Service) transcode(parent context.Context, input io.ReadCloser, ffmpeg 
 		} else {
 			writer.Close()
 		}
-		<-s.transcodeSlots
+		release()
 		close(p.done)
 	}()
 	go func() {

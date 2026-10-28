@@ -259,6 +259,25 @@ func TestProcessingRejectsUnsafeOrDuplicateInputsAndInvalidTranscode(t *testing.
 	}
 }
 
+func TestEncoderSaturationDoesNotPullAnOrigin(t *testing.T) {
+	s, id := processingFixture(t)
+	profile := Transcode{Mode: "h264", Device: "cpu", VideoKbps: 1000, Width: 640, Height: 360, FPS: 25, Audio: "copy"}
+	if e := s.SaveProcessing(id, nil, &profile, s.Revision()); e != nil {
+		t.Fatal(e)
+	}
+	s.client = &http.Client{Transport: roundTrip(func(*http.Request) (*http.Response, error) {
+		t.Fatal("origin opened before encoder admission")
+		return nil, ErrUnavailable
+	})}
+	s.transcodeSlots <- struct{}{}
+	s.transcodeSlots <- struct{}{}
+	if _, handled, e := s.OpenConfigured(context.Background(), id, "http_ts", ""); !handled || !errors.Is(e, mediaresources.ErrTranscodeBusy) {
+		t.Fatal("missing encoder capacity state")
+	}
+	<-s.transcodeSlots
+	<-s.transcodeSlots
+}
+
 func TestNativeTranscodeChangesResolutionAndReleasesProcess(t *testing.T) {
 	tool := os.Getenv("KORE_MANUAL_FFMPEG")
 	if tool == "" {

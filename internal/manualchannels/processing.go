@@ -255,6 +255,20 @@ func (s *Service) OpenConfigured(ctx context.Context, id, protocol, ffmpeg strin
 	if !s.Authorized(id, protocol) {
 		return nil, true, ErrDenied
 	}
+	release := func() {}
+	retained := false
+	if p.Transcode.Mode != "copy" {
+		var reserveError error
+		release, reserveError = s.reserveEncoder()
+		if reserveError != nil {
+			return nil, true, reserveError
+		}
+	}
+	defer func() {
+		if !retained {
+			release()
+		}
+	}()
 	var reader io.ReadCloser
 	var err error
 	if local {
@@ -314,6 +328,7 @@ func (s *Service) OpenConfigured(ctx context.Context, id, protocol, ffmpeg strin
 	if p.Transcode.Mode == "copy" {
 		return reader, true, nil
 	}
-	result, e := s.transcode(ctx, reader, ffmpeg, p.Transcode)
+	result, e := s.encodeReserved(ctx, reader, ffmpeg, p.Transcode, release)
+	retained = e == nil
 	return result, true, e
 }
