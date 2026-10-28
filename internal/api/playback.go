@@ -182,7 +182,20 @@ func (a *API) externalPlayback(w http.ResponseWriter, r *http.Request) {
 		for _, status := range v.Streams {
 			if status.ChannelID == id {
 				if r.Method != "HEAD" {
-					json.NewEncoder(w).Encode(map[string]any{"channel_id": id, "state": status.State, "bits_per_second": status.Metrics.Bitrate, "last_packet_at": status.Metrics.LastPacket, "interruptions": status.Interruptions, "hls_state": status.HLS, "udp_state": status.UDP})
+					info := map[string]any{"channel_id": id, "state": status.State, "bits_per_second": status.Metrics.Bitrate, "last_packet_at": status.Metrics.LastPacket, "interruptions": status.Interruptions, "hls_state": status.HLS, "udp_state": status.UDP}
+					if a.ManualChannels != nil && status.State == "running" {
+						if media, err := a.ManualChannels.Processing(id); err == nil {
+							// Explicit allowlist: never serialize source addresses or credentials.
+							info["input_media"], info["output_media"], info["input_srt"] = media.InputMedia, media.OutputMedia, media.InputSRT
+							for _, input := range media.Inputs {
+								if input.Key == media.ActiveKey {
+									info["input_protocol"] = input.Protocol
+									break
+								}
+							}
+						}
+					}
+					json.NewEncoder(w).Encode(info)
 				}
 				return
 			}
