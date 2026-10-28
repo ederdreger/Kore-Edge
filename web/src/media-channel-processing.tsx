@@ -1,22 +1,29 @@
 import {useEffect,useState} from 'react';
 import {ArrowDown,ArrowUp,Plus,Trash2} from 'lucide-react';
 import {detectLink} from './manual-channel-editor';
-import type {Capabilities,useLiveDistribution} from './live-distribution';
+import {stateLabel,failureLabel,type LiveStream,type Capabilities,useLiveDistribution} from './live-distribution';
 
 type Live=ReturnType<typeof useLiveDistribution>;
 type Input={key:string;address?:string;url?:string;protocol:string;interface:string;local_ip:string};
 export type Transcode={mode:'copy'|'h264';device?:string;video_kbps?:number;width?:number;height?:number;fps?:number;audio?:'copy'|'aac';audio_kbps?:number};
-type Profile={revision:number;inputs:Input[];transcode:Transcode;active_key:string;local:boolean};
+type MediaInfo={video?:string;audio?:string;width?:number;height?:number;measured_at:string};
+type Profile={input_media?:MediaInfo;output_media?:MediaInfo;revision:number;inputs:Input[];transcode:Transcode;active_key:string;local:boolean};
 type Devices={devices:{id:string;name:string}[];max_concurrent:number;warning:string};
 type Props={id:string;live:Live;blocked:boolean;tab:'input'|'transcoder'};
 const defaults:Transcode={mode:'h264',device:'',video_kbps:3000,width:1280,height:720,fps:25,audio:'aac',audio_kbps:128};
 const label=(p:string)=>({http_ts:'HTTP MPEG-TS',hls:'HLS',udp:'UDP MPEG-TS',srt:'SRT'}[p]||'Detectar pelo link');
 
-export function ChannelProcessingSummary({id,live}:{id:string;live:Live}){
+function MeasuredMedia({info,online}:{info?:MediaInfo;online:boolean}){
+ if(!online||!info)return <p>Codecs e resolução: {online?'Aguardando medição do fluxo':'Sem medição atual'}</p>;
+ return <><p>Vídeo: {info.video?.toUpperCase()||'Não identificado'}{info.width&&info.height?` · ${info.width} × ${info.height}`:''}</p><p>Áudio: {info.audio?.toUpperCase()||'Não identificado'}</p></>;
+}
+export function ChannelProcessingSummary({id,live,stream,fallbackProtocol}:{id:string;live:Live;stream?:LiveStream;fallbackProtocol:string}){
  const [value,setValue]=useState<Profile|null>(null);
- useEffect(()=>{if(!live.admin)return;let disposed=false;const load=()=>{void live.call('GET','manual-channels/processing?id='+encodeURIComponent(id)).then(v=>{if(!disposed)setValue(v)}).catch(()=>{if(!disposed)setValue(null)})};load();const timer=setInterval(load,5000);return()=>{disposed=true;clearInterval(timer)}},[id,live.admin,live.call]);
+ useEffect(()=>{if(!live.admin)return;let disposed=false;setValue(null);const load=()=>{void live.call('GET','manual-channels/processing?id='+encodeURIComponent(id)).then(v=>{if(!disposed)setValue(v)}).catch(()=>{if(!disposed)setValue(null)})};load();const timer=setInterval(load,5000);return()=>{disposed=true;clearInterval(timer)}},[id,live.admin,live.call]);
  const active=value?.inputs?.find(v=>v.key===value.active_key);
- return <><p>{value?.transcode?.mode==='copy'?'Sem transcodificação':value?.transcode?.mode==='h264'?'Perfil H.264 · '+value.transcode.device:'Processamento: indisponível nesta consulta'}</p>{active&&<p>Origem selecionada: {label(active.protocol)} · URL {value!.inputs.indexOf(active)+1}</p>}<p>Bitrate medido no fluxo compartilhado, após processamento quando ativo.</p></>;
+ const online=stream?.state==='running';
+ return <><div><h2>Informações de entrada</h2><p>{active?label(active.protocol):value?.local?'Entrada ativa ainda não identificada':label(fallbackProtocol)}</p><MeasuredMedia info={value?.input_media} online={online}/><p>Interrupções: {stream?.interruptions??'Não medido'}</p><p>Última queda: {failureLabel(stream?.last_failure_reason)}</p></div><div><h2>Informações de saída</h2><MeasuredMedia info={value?.output_media} online={online}/><p>MPEG-TS: {online?'Disponível':'Sem recepção'}</p><p>HLS: {stateLabel(stream?.hls_state)}</p><p>UDP: {stateLabel(stream?.udp_state)}</p><p>{value?.transcode?.mode==='copy'?'Sem transcodificação':value?.transcode?.mode==='h264'?'Perfil H.264 · '+value.transcode.device:'Processamento: indisponível nesta consulta'}</p>{active&&<p>Origem selecionada: {label(active.protocol)} · URL {value!.inputs.indexOf(active)+1}</p>}<p>Codecs medidos em amostra real; bitrate no fluxo compartilhado, após processamento quando ativo.</p></div></>;
+
 }
 
 export function ChannelProcessing({id,live,blocked,tab}:Props){

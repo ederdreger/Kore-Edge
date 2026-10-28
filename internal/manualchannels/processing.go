@@ -53,11 +53,13 @@ type InputView struct {
 	LocalIP   string `json:"local_ip"`
 }
 type ProcessingView struct {
-	Revision  uint64      `json:"revision"`
-	Inputs    []InputView `json:"inputs"`
-	Transcode Transcode   `json:"transcode"`
-	ActiveKey string      `json:"active_key"`
-	Local     bool        `json:"local"`
+	Revision    uint64      `json:"revision"`
+	Inputs      []InputView `json:"inputs"`
+	Transcode   Transcode   `json:"transcode"`
+	ActiveKey   string      `json:"active_key"`
+	Local       bool        `json:"local"`
+	InputMedia  *MediaInfo  `json:"input_media,omitempty"`
+	OutputMedia *MediaInfo  `json:"output_media,omitempty"`
 }
 
 var processingID = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,80}$`)
@@ -138,6 +140,9 @@ func (s *Service) Processing(id string) (ProcessingView, error) {
 	defer s.mu.Unlock()
 	p := s.processingLocked(id, c)
 	out := ProcessingView{Revision: s.revisionLocked(), Inputs: []InputView{}, Transcode: p.Transcode, ActiveKey: s.activeInput[id], Local: ok}
+	if media := s.mediaInfo[id]; media != nil {
+		out.InputMedia, out.OutputMedia = media.input, media.output
+	}
 	for _, in := range p.Inputs {
 		u, _ := parse(in.URL)
 		out.Inputs = append(out.Inputs, InputView{in.Key, safeAddress(u), in.Protocol, in.Interface, in.LocalIP})
@@ -236,17 +241,22 @@ func (s *Service) SaveProcessing(id string, inputs *[]Input, transcode *Transcod
 	s.processing = next
 	delete(s.nextInput, id)
 	delete(s.activeInput, id)
+	delete(s.mediaInfo, id)
 	return nil
 }
 
-// OpenConfigured is used only when a reviewed profile exists. The legacy path
-// remains unchanged for every channel without such a profile.
+// OpenConfigured uses the reviewed profile or the local source in copy mode.
+// Sources without a local registration or processing profile use the legacy path.
 func (s *Service) OpenConfigured(ctx context.Context, id, protocol, ffmpeg string) (io.ReadCloser, bool, error) {
+	return s.OpenConfiguredMedia(ctx, id, protocol, ffmpeg, "")
+}
+
+func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg, ffprobe string) (io.ReadCloser, bool, error) {
 	c, local := s.source(id)
 	s.mu.Lock()
 	stored, exists := s.processing.Entries[id]
 	p := s.processingLocked(id, c)
-	handled := exists && (local && stored.Base == fingerprint(c) || !local && stored.Base == "")
+	handled := local || exists && !local && stored.Base == ""
 	start := s.nextInput[id]
 	s.mu.Unlock()
 	if !handled {
@@ -325,10 +335,38 @@ func (s *Service) OpenConfigured(ctx context.Context, id, protocol, ffmpeg strin
 	if reader == nil {
 		return nil, true, ErrUnavailable
 	}
+	media := &pipelineMedia{}
+	s.mu.Lock()
+	if s.mediaInfo == nil {
+		s.mediaInfo = map[string]*pipelineMedia{}
+	}
+	s.mediaInfo[id] = media
+	s.mu.Unlock()
+	record := func(input bool) func(*MediaInfo) {
+		return func(info *MediaInfo) {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			if s.mediaInfo[id] != media || ctx.Err() != nil {
+				return
+			}
+			if input {
+				media.input = info
+				if p.Transcode.Mode == "copy" {
+					media.output = info
+				}
+			} else {
+				media.output = info
+			}
+		}
+	}
+	reader = observeMedia(ctx, reader, ffprobe, record(true))
 	if p.Transcode.Mode == "copy" {
 		return reader, true, nil
 	}
 	result, e := s.encodeReserved(ctx, reader, ffmpeg, p.Transcode, release)
 	retained = e == nil
+	if e == nil {
+		result = observeMedia(ctx, result, ffprobe, record(false))
+	}
 	return result, true, e
 }

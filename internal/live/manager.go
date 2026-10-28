@@ -108,6 +108,13 @@ func NewWithCapacity(ctx context.Context, directory string, catalog Catalog, max
 	manager.retryDelay = recoveryDelay
 	manager.open = func(ctx context.Context, config ChannelConfig, tools Tools) (io.ReadCloser, error) {
 		if configured, ok := catalog.(interface {
+			OpenConfiguredMedia(context.Context, string, string, string, string) (io.ReadCloser, bool, error)
+		}); ok {
+			if input, handled, err := configured.OpenConfiguredMedia(ctx, config.ChannelID, config.Protocol, tools.FFmpeg, tools.FFprobe); handled {
+				return input, err
+			}
+		}
+		if configured, ok := catalog.(interface {
 			OpenConfigured(context.Context, string, string, string) (io.ReadCloser, bool, error)
 		}); ok {
 			if input, handled, err := configured.OpenConfigured(ctx, config.ChannelID, config.Protocol, tools.FFmpeg); handled {
