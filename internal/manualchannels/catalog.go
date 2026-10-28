@@ -21,15 +21,16 @@ type Catalog interface {
 }
 type Service struct {
 	protected
-	directory  string
-	data       state
-	fallback   Catalog
-	client     *http.Client
-	lookup     func(context.Context, string) ([]net.IPAddr, error)
-	interfaces func() ([]multicast.Interface, error)
-	slots      chan struct{}
-	dialSRT    func(string, string, srt.Config) (srt.Conn, error)
-	command    func(context.Context, string, ...string) *exec.Cmd
+	directory    string
+	data         state
+	presentation presentationState
+	fallback     Catalog
+	client       *http.Client
+	lookup       func(context.Context, string) ([]net.IPAddr, error)
+	interfaces   func() ([]multicast.Interface, error)
+	slots        chan struct{}
+	dialSRT      func(string, string, srt.Config) (srt.Conn, error)
+	command      func(context.Context, string, ...string) *exec.Cmd
 }
 
 func (s *Service) Close() { s.client.CloseIdleConnections() }
@@ -41,6 +42,9 @@ func (s *Service) Snapshot() edgecatalog.Snapshot {
 	}
 	s.mu.Lock()
 	sources := append([]Source{}, s.data.Sources...)
+	for i := range sources {
+		sources[i].Name = s.displayName(sources[i])
+	}
 	s.mu.Unlock()
 	if len(sources) == 0 {
 		return out

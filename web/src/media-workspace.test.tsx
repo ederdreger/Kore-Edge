@@ -4,8 +4,9 @@ import {cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/r
 import {AccountContext} from './account-context';
 import {MediaWorkspace} from './media-workspace';
 import type {LiveView} from './live-distribution';
-afterEach(()=>{cleanup();vi.restoreAllMocks()});
+afterEach(()=>{cleanup();vi.restoreAllMocks();window.history.replaceState(null,'','#media')});
 function fixture(role='admin',count=2,running=false){
+ window.history.replaceState(null,'','#media');
  const user={id:'synthetic',username:'operador',role,revision:1,disabled:false} as any;
  const ids=Array.from({length:count},(_,i)=>'synthetic-'+i);
  let view:LiveView={configuration:{generation:4,tools:{ffmpeg:'',ffprobe:''},channels:ids.map(id=>({channel_id:id,protocol:'http_ts',hls:false,resume:false,auto_paused:true}))},catalog:{configured:true,available:true,last_sync:'',catalog:{partner_name:'Laboratório sintético',channels:ids.map((id,i)=>({id,name:'Canal '+(i+1),category:'Laboratório',outputs:[],protocols:[{id:'http_ts',label:'HTTP MPEG-TS',path:'/synthetic'}]}))}},streams:[],max_active:16};
@@ -74,7 +75,8 @@ it('reconnects only the chosen transmission using stop then start',async()=>{
 });
 it('closes channel details with Escape and returns focus without operating the channel',async()=>{
  const f=fixture();
- const name=await screen.findByRole('button',{name:'Canal 1'});
+ await screen.findByRole('button',{name:'Canal 1'});
+ const name=screen.getAllByRole('button',{name:'Detalhes e saídas'})[0];
  name.focus();fireEvent.click(name);
  expect(screen.getByRole('dialog',{name:'Canal 1'})).toBeTruthy();
  fireEvent.keyDown(document,{key:'Escape'});

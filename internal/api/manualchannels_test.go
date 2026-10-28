@@ -92,6 +92,20 @@ func TestManualChannelsSessionCSRFRevisionAndSecretBoundary(t *testing.T) {
 	if json.Unmarshal(w.Body.Bytes(), &value) != nil || value.ChannelID == "" || !value.Prepared || !value.Started || value.Revision != 1 {
 		t.Fatal("default reception not prepared")
 	}
+	metadata := map[string]any{"action": "metadata", "revision": 1, "confirmed": true, "source": map[string]any{"id": value.ChannelID}, "metadata": map[string]any{"name": "Synthetic renamed", "title": "Synthetic title", "description": "Synthetic description"}}
+	if w = call("POST", "/api/v1/manual-channels", metadata, ""); w.Code != 403 {
+		t.Fatal("metadata bypassed CSRF", w.Code)
+	}
+	generation := manager.Snapshot().Configuration.Generation
+	if w = call("POST", "/api/v1/manual-channels", metadata, csrf); w.Code != 200 {
+		t.Fatal("active metadata failed", w.Code, w.Body.String())
+	}
+	if !manager.IsActive(value.ChannelID) || manager.Snapshot().Configuration.Generation != generation {
+		t.Fatal("metadata restarted or stopped reception")
+	}
+	if w = call("POST", "/api/v1/manual-channels", metadata, csrf); w.Code != 409 {
+		t.Fatal("stale metadata overwrite", w.Code)
+	}
 	for _, path := range []string{"/api/v1/manual-channels", "/api/v1/live"} {
 		w = call("GET", path, nil, "")
 		if w.Code != 200 || bytes.Contains(w.Body.Bytes(), []byte("synthetic-password")) || bytes.Contains(w.Body.Bytes(), []byte("synthetic-token")) {
@@ -111,6 +125,9 @@ func TestManualChannelsSessionCSRFRevisionAndSecretBoundary(t *testing.T) {
 		t.Fatal("viewer creation", w.Code)
 	}
 	login("reader")
+	if w = call("POST", "/api/v1/manual-channels", metadata, csrf); w.Code != 403 {
+		t.Fatal("viewer metadata accepted", w.Code)
+	}
 	if w = call("POST", "/api/v1/manual-channels", input, csrf); w.Code != 403 {
 		t.Fatal("viewer write accepted", w.Code)
 	}
@@ -122,7 +139,7 @@ func TestManualChannelsSessionCSRFRevisionAndSecretBoundary(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if w = call("POST", "/api/v1/manual-channels", map[string]any{"action": "delete", "revision": 1, "confirmed": true, "source": map[string]any{"id": value.ChannelID}}, csrf); w.Code != 200 {
+	if w = call("POST", "/api/v1/manual-channels", map[string]any{"action": "delete", "revision": 2, "confirmed": true, "source": map[string]any{"id": value.ChannelID}}, csrf); w.Code != 200 {
 		t.Fatal("delete", w.Code)
 	}
 	if _, e := outputLinks.Verify(oldLink, value.ChannelID, false); e == nil {
