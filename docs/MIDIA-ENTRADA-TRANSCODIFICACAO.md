@@ -51,6 +51,8 @@ como usuário do serviço. Nenhum driver é instalado ou alterado pelo painel.
 | GOP aberto | Disponível na CPU; desativado por padrão |
 | Duplicar / remover | Edita as faixas do rascunho antes de salvar |
 | Copiar configuração | Copia apenas o perfil, sem URLs, senhas ou chaves |
+| Colar configuração | Carrega um perfil copiado em rascunho; exige salvar e validação |
+| Opções estendidas | CPU: tune, sensibilidade a cenas, intervalo mínimo e fatias, em lista permitida |
 
 Opções não suportadas por um dispositivo ficam desabilitadas. Ao trocar o
 dispositivo, o rascunho limpa opções incompatíveis. O backend também valida
@@ -77,6 +79,9 @@ entrada `publish://incoming`. Inicie o canal; o emissor envia MPEG-TS por POST/P
 para o endpoint exibido, usando `Authorization: Bearer TOKEN`. O token não faz
 parte da URL. Há uma publicação por canal e até 16 receptores aguardando push.
 Desabilitar publicação e salvar revoga o acesso. Sem senha administrativa.
+Renovar credencial e salvar invalida o token anterior; exportações de cluster
+também verificam revogação durante a conexão. O token não expira por tempo
+enquanto o canal e a permissão forem mantidos.
 
 **Reserva** repete o MP4 em tempo real se a origem falhar. A cada dez segundos,
 verifica as entradas para recuperar uma origem que voltou. Os tempos de dados,

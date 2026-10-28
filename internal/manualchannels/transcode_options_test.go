@@ -68,6 +68,7 @@ func TestNativeAdvancedTranscode(t *testing.T) {
 		t.Fatal("synthetic generation", e)
 	}
 	configs := []Transcode{advancedProfile(), {Mode: "h264", Device: "cpu", FPS: 25, VideoCopy: true, Audio: "aac", AudioKbps: 96, SampleRate: 44100, Channels: 1, VolumeDB: -3}, advancedProfile()}
+	configs[0].Tracks[0].Extended = []EncoderOption{{Key: "tune", Value: "film"}, {Key: "scene_threshold", Value: "0"}, {Key: "min_keyframe", Value: "25"}, {Key: "slices", Value: "2"}}
 	configs[2].Tracks = configs[2].Tracks[:1]
 	configs[2].SplitChannels = true
 	configs[2].Deinterlace = "bwdif"

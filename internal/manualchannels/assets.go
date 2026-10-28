@@ -12,12 +12,16 @@ import (
 	"io"
 	"kore-edge/internal/mediaresources"
 	"kore-edge/internal/security"
+	"math"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
 	"time"
+	"unicode"
 )
 
 var assetID = regexp.MustCompile(`^[a-f0-9]{64}\.(png|mp4)$`)
@@ -26,6 +30,7 @@ type Asset struct {
 	ID    string `json:"id"`
 	Kind  string `json:"kind"`
 	Bytes int64  `json:"bytes"`
+	Name  string `json:"name,omitempty"`
 }
 
 func (s *Service) assetDir() (string, error) {
@@ -60,7 +65,11 @@ func (s *Service) assetsLocked() ([]Asset, error) {
 			if filepath.Ext(entry.Name()) == ".mp4" {
 				kind = "backup"
 			}
-			out = append(out, Asset{entry.Name(), kind, info.Size()})
+			name := ""
+			if data, e := security.ReadPrivateFile(filepath.Join(dir, entry.Name()+".name"), 256); e == nil {
+				name = string(data)
+			}
+			out = append(out, Asset{entry.Name(), kind, info.Size(), name})
 		}
 	}
 	return out, nil
@@ -153,12 +162,12 @@ func (s *Service) ImportAsset(parent context.Context, kind, raw, ffprobe string)
 		}
 		n = int64(data.Len())
 	} else {
-		if !executable(ffprobe) {
+		if !trustedExecutable(ffprobe, "ffprobe") {
 			return empty, ErrUnavailable
 		}
 		probeCtx, stop := context.WithTimeout(ctx, 6*time.Second)
 		defer stop()
-		cmd := s.command(probeCtx, ffprobe, "-v", "quiet", "-protocol_whitelist", "file,pipe", "-f", "mov", "-show_entries", "stream=codec_type,codec_name:format=duration", "-of", "json", f.Name())
+		cmd := s.command(probeCtx, ffprobe, "-v", "quiet", "-protocol_whitelist", "file,pipe", "-f", "mov", "-show_entries", "stream=codec_type,codec_name,width,height:format=duration", "-of", "json", f.Name())
 		mediaresources.Configure(cmd)
 		out := &probeBuffer{}
 		cmd.Stdout = out
@@ -169,8 +178,10 @@ func (s *Service) ImportAsset(parent context.Context, kind, raw, ffprobe string)
 		}
 		var result struct {
 			Streams []struct {
-				Kind  string `json:"codec_type"`
-				Codec string `json:"codec_name"`
+				Kind   string `json:"codec_type"`
+				Codec  string `json:"codec_name"`
+				Width  int    `json:"width"`
+				Height int    `json:"height"`
 			} `json:"streams"`
 			Format struct {
 				Duration string `json:"duration"`
@@ -180,14 +191,14 @@ func (s *Service) ImportAsset(parent context.Context, kind, raw, ffprobe string)
 			return empty, ErrInvalid
 		}
 		duration, e := strconv.ParseFloat(result.Format.Duration, 64)
-		if e != nil || duration < 1 || duration > 300 || len(result.Streams) > 8 {
+		if e != nil || math.IsNaN(duration) || math.IsInf(duration, 0) || duration < 1 || duration > 300 || len(result.Streams) > 8 {
 			return empty, ErrInvalid
 		}
 		video := false
 		for _, v := range result.Streams {
 			if v.Kind == "video" {
 				video = true
-				if v.Codec != "h264" {
+				if v.Codec != "h264" || v.Width < 1 || v.Width > 3840 || v.Height < 1 || v.Height > 2160 {
 					return empty, ErrInvalid
 				}
 			}
@@ -227,7 +238,27 @@ func (s *Service) ImportAsset(parent context.Context, kind, raw, ffprobe string)
 	if f.Close() != nil || os.Rename(f.Name(), filepath.Join(dir, id)) != nil {
 		return empty, ErrUnavailable
 	}
-	return Asset{id, kind, n}, nil
+	name := ""
+	if u, e := url.Parse(raw); e == nil {
+		runes := []rune{}
+		for _, r := range path.Base(u.Path) {
+			if !unicode.IsControl(r) && r != '/' && r != '\\' {
+				runes = append(runes, r)
+				if len(runes) >= 64 {
+					break
+				}
+			}
+		}
+		name = string(runes)
+	}
+	if name != "" {
+		meta, e := os.OpenFile(filepath.Join(dir, id+".name"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if e == nil {
+			meta.WriteString(name)
+			meta.Close()
+		}
+	}
+	return Asset{id, kind, n, name}, nil
 }
 func (s *Service) DeleteAsset(id string) error {
 	s.mu.Lock()
@@ -251,5 +282,6 @@ func (s *Service) DeleteAsset(id string) error {
 	if os.Remove(p) != nil {
 		return ErrUnavailable
 	}
+	os.Remove(p + ".name")
 	return nil
 }

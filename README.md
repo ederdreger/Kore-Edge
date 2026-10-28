@@ -491,3 +491,9 @@ remover URLs, com protecao ao sair. Transcodificacao separa audio/video, oferece
 ate tres faixas H.264 e controles validados por dispositivo. Copy permanece o
 padrao. HLS/player usam a primeira faixa; o TS contem as faixas configuradas.
 Veja [controles, limites e aceite](docs/MIDIA-ENTRADA-TRANSCODIFICACAO.md).
+
+A mesma entrega inclui publicacao MPEG-TS por HTTPS com token de canal, cluster
+HTTPS de um salto, reserva MP4 e logotipo por URL. Arquivos sao copiados e
+validados em armazenamento privado com cotas. Reserva usa remux em copy para
+manter continuidade entre trocas; grava apenas a reserva, com limite por canal.
+Nada e habilitado ate salvar no painel. Nao abre portas adicionais.

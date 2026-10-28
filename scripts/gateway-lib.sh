@@ -151,7 +151,7 @@ render_legacy_panel_gateway() {
     -e '/^[[:space:]]*auth_basic_user_file /d' \
     -e '/limit_except GET HEAD/d' \
     -e '/proxy_set_header Origin /d' \
-    -e 's/client_max_body_size 1k;/client_max_body_size 16k;/'
+    -e 's/client_max_body_size 1k;/client_max_body_size 64k;/'
 }
 
 # Only capability-protected embed documents may be framed. The dashboard keeps DENY.

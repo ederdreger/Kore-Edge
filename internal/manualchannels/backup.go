@@ -331,9 +331,6 @@ func (s *Service) probeRecovery(ctx, lifetime context.Context, id string, p Proc
 		case <-ticker.C:
 		}
 		for _, in := range p.Inputs {
-			if in.Protocol == "publish" {
-				continue
-			}
 			attempt, stop := context.WithCancel(lifetime)
 			timer := time.AfterFunc(5*time.Second, stop)
 			r, e := s.openInput(attempt, id, in, ffmpeg)
@@ -372,3 +369,26 @@ type recoveryCloser struct {
 }
 
 func (r *recoveryCloser) Close() error { r.cancel(); return r.ReadCloser.Close() }
+
+func (s *Service) OpenRecording(id string) (*os.File, error) {
+	if !localID.MatchString(id) {
+		return nil, ErrInvalid
+	}
+	if _, ok := s.source(id); !ok {
+		return nil, ErrInvalid
+	}
+	dir := filepath.Join(s.directory, "recordings")
+	if security.PrivateDirectory(dir, false) != nil {
+		return nil, ErrUnavailable
+	}
+	path := filepath.Join(dir, id+".ts")
+	info, e := os.Lstat(path)
+	if e != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() > 32<<20 {
+		return nil, ErrUnavailable
+	}
+	f, e := os.Open(path)
+	if e != nil {
+		return nil, ErrUnavailable
+	}
+	return f, nil
+}

@@ -498,7 +498,7 @@ func TestPanelGatewayKeepsOriginAndAllowsAccountRequests(t *testing.T) {
 			t.Fatal("session login blocked", forbidden)
 		}
 	}
-	for _, required := range []string{"client_max_body_size 16k", "ssl_protocols TLSv1.2 TLSv1.3", "proxy_set_header Authorization \"\"", "proxy_set_header Host \"127.0.0.1:18080\""} {
+	for _, required := range []string{"client_max_body_size 64k", "ssl_protocols TLSv1.2 TLSv1.3", "proxy_set_header Authorization \"\"", "proxy_set_header Host \"127.0.0.1:18080\""} {
 		if !strings.Contains(s, required) {
 			t.Fatal("missing proxy boundary", required)
 		}

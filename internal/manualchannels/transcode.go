@@ -167,8 +167,22 @@ func (s *Service) encodeReserved(parent context.Context, input io.ReadCloser, ff
 			t.logoPaths[track.Logo] = path
 		}
 	}
+	return s.runEncoder(parent, input, ffmpeg, transcodeArgs(t), release)
+}
+
+// An opt-in reserve needs a single remuxer to normalize transport continuity
+// across input switches; codecs remain untouched in copy mode.
+func (s *Service) copyReserved(parent context.Context, input io.ReadCloser, ffmpeg string, release func()) (io.ReadCloser, error) {
+	if !executable(ffmpeg) {
+		input.Close()
+		return nil, ErrUnavailable
+	}
+	args := []string{"-hide_banner", "-loglevel", "quiet", "-nostdin", "-protocol_whitelist", "pipe", "-fflags", "+genpts", "-dts_delta_threshold", "0.1", "-f", "mpegts", "-i", "pipe:0", "-map", "0:v:0", "-map", "0:a?", "-c", "copy", "-mpegts_flags", "+resend_headers+initial_discontinuity", "-flush_packets", "1", "-f", "mpegts", "pipe:1"}
+	return s.runEncoder(parent, input, ffmpeg, args, release)
+}
+func (s *Service) runEncoder(parent context.Context, input io.ReadCloser, ffmpeg string, args []string, release func()) (io.ReadCloser, error) {
 	ctx, cancel := context.WithCancel(parent)
-	cmd := s.command(ctx, ffmpeg, transcodeArgs(t)...)
+	cmd := s.command(ctx, ffmpeg, args...)
 	mediaresources.Configure(cmd)
 	cmd.Stdin = input
 	cmd.Stderr = io.Discard

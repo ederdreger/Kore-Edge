@@ -256,20 +256,28 @@ func (s *Service) SaveProcessingPolicy(id string, inputs *[]Input, transcode *Tr
 		}
 		nextPolicy := *policy
 		nextPolicy.Token = p.Policy.Token
-		if (nextPolicy.Publication || nextPolicy.ClusterExport) && nextPolicy.Token == "" {
+		if (nextPolicy.Publication || nextPolicy.ClusterExport) && (nextPolicy.Token == ""||nextPolicy.RotateToken) {
 			nextPolicy.Token = random()
+			if !inputKey.MatchString(nextPolicy.Token) || nextPolicy.Token == "primary" {
+				return ErrUnavailable
+			}
 		}
+		nextPolicy.RotateToken=false
 		if nextPolicy.BackupAsset != "" {
 			if _, e := s.assetPath(nextPolicy.BackupAsset, "backup"); e != nil {
 				return e
 			}
 		}
 		p.Policy = nextPolicy
+		if p.Policy.BackupAsset != "" && p.Policy.BackupTimeout == 0 {
+			p.Policy.BackupTimeout = 5
+		}
 	}
 	for _, in := range p.Inputs {
 		if in.Protocol == "publish" && !p.Policy.Publication {
 			return ErrInvalid
 		}
+		if in.Protocol=="cluster"&&p.Policy.ClusterExport{return ErrInvalid}
 	}
 	if transcode != nil {
 		if !validateTranscode(*transcode) {
@@ -338,6 +346,24 @@ func (s *Service) SourceIdleTimeout(id string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p := s.processingLocked(id, c)
+	if p.Policy.BackupAsset != "" {
+		if media := s.mediaInfo[id]; media != nil && media.backup {
+			return 0
+		}
+		seconds := p.Policy.BackupTimeout
+		if seconds == 0 {
+			seconds = 5
+		}
+		for _, in := range p.Inputs {
+			if in.Key == s.activeInput[id] && in.SourceTimeout > 0 && in.SourceTimeout < seconds {
+				seconds = in.SourceTimeout
+			}
+		}
+		if seconds > 297 {
+			return 300
+		}
+		return seconds + 3
+	}
 	for _, in := range p.Inputs {
 		if in.Key == s.activeInput[id] {
 			return in.SourceTimeout
@@ -362,7 +388,7 @@ func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg,
 	}
 	release := func() {}
 	retained := false
-	if p.Transcode.Mode != "copy" {
+	if p.Transcode.Mode != "copy" || p.Policy.BackupAsset != "" {
 		var reserveError error
 		release, reserveError = s.reserveEncoder()
 		if reserveError != nil {
@@ -393,6 +419,9 @@ func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg,
 				s.nextInput[id] = (i + 1) % len(p.Inputs)
 				s.activeInput[id] = in.Key
 				s.mu.Unlock()
+				break
+			}
+			if p.Policy.BackupAsset != "" {
 				break
 			}
 		}
@@ -451,6 +480,11 @@ func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg,
 	}
 	reader = observeMedia(ctx, reader, ffprobe, record(true), media.inputRate)
 	if p.Transcode.Mode == "copy" {
+		if p.Policy.BackupAsset != "" {
+			result, e := s.copyReserved(ctx, reader, ffmpeg, release)
+			retained = e == nil
+			return result, true, e
+		}
 		return reader, true, nil
 	}
 	result, e := s.encodeReserved(ctx, reader, ffmpeg, p.Transcode, release)

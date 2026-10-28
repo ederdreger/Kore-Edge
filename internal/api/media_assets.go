@@ -57,6 +57,11 @@ func (a *API) mediaAssets(w http.ResponseWriter, r *http.Request, actor accounts
 		}
 	})
 	if e != nil {
+		if input.Action == "delete" {
+			w.WriteHeader(409)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Arquivo em uso ou indisponivel. Remova da configuracao, salve e tente excluir novamente."})
+			return
+		}
 		w.WriteHeader(400)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Arquivo recusado. Confira URL, formato, tamanho, recursos disponíveis e se está em uso."})
 		return

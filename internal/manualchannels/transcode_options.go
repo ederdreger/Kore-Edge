@@ -10,25 +10,30 @@ import (
 
 // Typed controls only: no shell arguments, arbitrary filters or file paths.
 type VideoTrack struct {
-	VideoKbps    int    `json:"video_kbps"`
-	Width        int    `json:"width"`
-	Height       int    `json:"height"`
-	Codec        string `json:"codec,omitempty"`
-	Profile      string `json:"profile,omitempty"`
-	Preset       string `json:"preset,omitempty"`
-	Level        string `json:"level,omitempty"`
-	BFrames      int    `json:"bframes,omitempty"`
-	Refs         int    `json:"refs,omitempty"`
-	SAR          string `json:"sar,omitempty"`
-	Resize       string `json:"resize,omitempty"`
-	Background   string `json:"background,omitempty"`
-	Interlace    bool   `json:"interlace,omitempty"`
-	OpenGOP      bool   `json:"open_gop,omitempty"`
-	Logo         string `json:"logo,omitempty"`
-	LogoPosition string `json:"logo_position,omitempty"`
-	LogoWidth    int    `json:"logo_width,omitempty"`
-	LogoHeight   int    `json:"logo_height,omitempty"`
-	LogoMargin   int    `json:"logo_margin,omitempty"`
+	Extended     []EncoderOption `json:"extended,omitempty"`
+	VideoKbps    int             `json:"video_kbps"`
+	Width        int             `json:"width"`
+	Height       int             `json:"height"`
+	Codec        string          `json:"codec,omitempty"`
+	Profile      string          `json:"profile,omitempty"`
+	Preset       string          `json:"preset,omitempty"`
+	Level        string          `json:"level,omitempty"`
+	BFrames      int             `json:"bframes,omitempty"`
+	Refs         int             `json:"refs,omitempty"`
+	SAR          string          `json:"sar,omitempty"`
+	Resize       string          `json:"resize,omitempty"`
+	Background   string          `json:"background,omitempty"`
+	Interlace    bool            `json:"interlace,omitempty"`
+	OpenGOP      bool            `json:"open_gop,omitempty"`
+	Logo         string          `json:"logo,omitempty"`
+	LogoPosition string          `json:"logo_position,omitempty"`
+	LogoWidth    int             `json:"logo_width,omitempty"`
+	LogoHeight   int             `json:"logo_height,omitempty"`
+	LogoMargin   int             `json:"logo_margin,omitempty"`
+}
+type EncoderOption struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 func oneOf(v string, values ...string) bool {
@@ -87,6 +92,45 @@ func validTranscode(t Transcode) bool {
 		return false
 	}
 	for _, v := range tracks {
+		if len(v.Extended) > 4 || len(v.Extended) > 0 && t.Device != "cpu" {
+			return false
+		}
+		seen := map[string]bool{}
+		for _, option := range v.Extended {
+			if seen[option.Key] {
+				return false
+			}
+			seen[option.Key] = true
+			switch option.Key {
+			case "tune":
+				if !oneOf(option.Value, "zerolatency", "film", "animation", "grain") || option.Value == "zerolatency" && v.BFrames != 0 {
+					return false
+				}
+			case "scene_threshold", "min_keyframe", "slices":
+				n, e := strconv.Atoi(option.Value)
+				if e != nil {
+					return false
+				}
+				limit := 100
+				minimum := 0
+				if option.Key == "min_keyframe" {
+					limit = t.GOP
+					if limit == 0 {
+						limit = t.FPS * 2
+					}
+					minimum = 1
+				}
+				if option.Key == "slices" {
+					limit = 16
+					minimum = 1
+				}
+				if n < minimum || n > limit {
+					return false
+				}
+			default:
+				return false
+			}
+		}
 		if v.Logo != "" && (!assetID.MatchString(v.Logo) || !strings.HasSuffix(v.Logo, ".png") || !oneOf(v.LogoPosition, "", "tl", "tr", "bl", "br") || v.LogoWidth < 0 || v.LogoWidth > 1024 || v.LogoHeight < 0 || v.LogoHeight > 1024 || v.LogoMargin < 0 || v.LogoMargin > 1024 || v.LogoWidth > v.Width || v.LogoHeight > v.Height || v.LogoMargin >= v.Width || v.LogoMargin >= v.Height) {
 			return false
 		}
@@ -171,7 +215,10 @@ func configuredTranscodeArgs(t Transcode) []string {
 					width = v.Width / 8
 				}
 				if height == 0 {
-					height = -1
+					height = v.Height / 8
+					if v.LogoWidth > 0 {
+						height = v.Height
+					}
 				}
 				m := strconv.Itoa(v.LogoMargin)
 				x, y := m, m
@@ -181,7 +228,7 @@ func configuredTranscodeArgs(t Transcode) []string {
 				if v.LogoPosition == "bl" || v.LogoPosition == "br" {
 					y = "main_h-overlay_h-" + m
 				}
-				filter += "[base" + strconv.Itoa(i) + "];[" + strconv.Itoa(input) + ":v:0]scale=" + strconv.Itoa(width) + ":" + strconv.Itoa(height) + "[logo" + strconv.Itoa(i) + "];[base" + strconv.Itoa(i) + "][logo" + strconv.Itoa(i) + "]overlay=" + x + ":" + y + ":shortest=1"
+				filter += "[base" + strconv.Itoa(i) + "];[" + strconv.Itoa(input) + ":v:0]scale=" + strconv.Itoa(width) + ":" + strconv.Itoa(height) + ":force_original_aspect_ratio=decrease[logo" + strconv.Itoa(i) + "];[base" + strconv.Itoa(i) + "][logo" + strconv.Itoa(i) + "]overlay=" + x + ":" + y + ":shortest=1"
 			}
 			if strings.HasPrefix(t.Device, "vaapi:") {
 				filter += ",format=nv12,hwupload"
@@ -245,6 +292,10 @@ func configuredTranscodeArgs(t Transcode) []string {
 					value = "open-gop=1"
 				}
 				args = append(args, "-x264-params"+suffix, value)
+				for _, option := range v.Extended {
+					flag := map[string]string{"tune": "-tune", "scene_threshold": "-sc_threshold", "min_keyframe": "-keyint_min", "slices": "-slices"}[option.Key]
+					args = append(args, flag+suffix, option.Value)
+				}
 			}
 		}
 	}

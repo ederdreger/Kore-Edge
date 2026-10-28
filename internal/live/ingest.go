@@ -37,13 +37,14 @@ func (m *Manager) attempt(j *job) (attemptError error) {
 				udp := j.udp
 				j.mu.Unlock()
 				last := hub.Snapshot().LastPacket
+				waitingForFirstPacket := last.IsZero()
 				timeout := 8 * time.Second
 				if last.IsZero() {
 					last = attemptStart
 					timeout = 20 * time.Second
 				}
 				if settings, ok := m.catalog.(interface{ SourceIdleTimeout(string) int }); ok {
-					if seconds := settings.SourceIdleTimeout(j.config.ChannelID); seconds >= 2 && seconds <= 300 {
+					if seconds := settings.SourceIdleTimeout(j.config.ChannelID); !waitingForFirstPacket && seconds >= 2 && seconds <= 300 {
 						timeout = time.Duration(seconds) * time.Second
 					}
 				}

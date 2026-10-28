@@ -209,3 +209,17 @@ Codificadores CPU/NVENC/VAAPI são oferecidos após ensaio sintético limitado, com
 ## Saídas adicionais do fluxo compartilhado
 
 `internal/output` mantém configuração privada e optativa fora de `live/distribution.json`. `live.SharedStream` acompanha o hub existente, sem abrir origem, e encerra na pausa ou perda de autorização. DASH/HLS CMAF usa um empacotador FFmpeg com cópia; RTMP/RTSP/SRT usa MediaMTX opcional alimentado por socket Unix privado. Autenticação interna valida chave permanente, canal, protocolo, ação de leitura e grant atual; publicação e serviços auxiliares não solicitados ficam desativados. IP/portas externos exigem revisão explícita no painel e nenhum listener começa habilitado. Os caminhos TS/HLS existentes continuam válidos. Contrato e limites em [Mídia — Saídas](MIDIA-SAIDAS.md).
+
+## Entrada, processamento e integracao HTTPS de midia
+
+Perfis privados por canal guardam entradas priorizadas, politica de reserva e
+transcodificacao tipada. O painel edita um rascunho e exige salvar. Midia
+compartilha uma recepcao; nao inicia uma origem por player. Copy continua padrao.
+Biblioteca privada importa PNG/JPEG e MP4 por HTTP(S), com DNS validado, sem
+redirect e limites de arquivo/cota. FFmpeg recebe somente pipes ou arquivos
+privados validados, nunca uma URL de arquivo remoto. Reserva opcional usa
+remux em copy para continuidade de transporte; watchdogs observam payload/PES.
+Publicacao e exportacao de cluster usam HTTPS existente e token por canal,
+separado da sessao administrativa; cluster aceita apenas um salto. Certificados
+privados exigem pin SHA256 confirmado pelo operador. Novos recursos permanecem
+desativados ate uma revisao salva. Nao alteram NIC, firewall ou portas.

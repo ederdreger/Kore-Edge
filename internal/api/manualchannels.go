@@ -32,6 +32,23 @@ func (a *API) manualChannels(w http.ResponseWriter, r *http.Request) {
 		a.mediaAssets(w, r, actor)
 		return
 	}
+	if r.URL.Path == "/api/v1/manual-channels/recording" && r.Method == "GET" {
+		file, e := a.ManualChannels.OpenRecording(r.URL.Query().Get("id"))
+		if e != nil {
+			w.WriteHeader(404)
+			return
+		}
+		defer file.Close()
+		info, e := file.Stat()
+		if e != nil {
+			w.WriteHeader(503)
+			return
+		}
+		w.Header().Set("Content-Type", "video/mp2t")
+		w.Header().Set("Content-Disposition", "attachment; filename=backup.ts")
+		http.ServeContent(w, r, "backup.ts", info.ModTime(), file)
+		return
+	}
 	if r.Method == "GET" && r.URL.Path == "/api/v1/manual-channels" {
 		_ = json.NewEncoder(w).Encode(a.ManualChannels.Inventory())
 		return

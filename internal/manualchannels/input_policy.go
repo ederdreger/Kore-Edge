@@ -24,6 +24,7 @@ type InputPolicy struct {
 	AudioTimeout    int    `json:"audio_timeout,omitempty"`
 	BackupTranscode bool   `json:"backup_transcode,omitempty"`
 	RecordBackup    bool   `json:"record_backup,omitempty"`
+	RotateToken     bool   `json:"rotate_token,omitempty"`
 }
 
 func (s *Service) openInput(ctx context.Context, id string, in Input, ffmpeg string) (io.ReadCloser, error) {
@@ -101,6 +102,13 @@ func (s *Service) policyAuthorized(id, token string, publish bool) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p := s.processingLocked(id, c).Policy
+	if !publish {
+		for _, in := range s.processingLocked(id, c).Inputs {
+			if in.Protocol == "cluster" {
+				return false
+			}
+		}
+	}
 	enabled := p.ClusterExport
 	if publish {
 		enabled = p.Publication
@@ -115,6 +123,7 @@ type publicationPipe struct {
 	r         *io.PipeReader
 	w         *io.PipeWriter
 	publisher bool
+	receiver  bool
 }
 type publicationReader struct {
 	*io.PipeReader
@@ -142,14 +151,18 @@ func (s *Service) openPublication(ctx context.Context, id string) (io.ReadCloser
 	if s.pushes == nil {
 		s.pushes = map[string]*publicationPipe{}
 	}
+	if p := s.pushes[id]; p != nil {
+		if p.receiver {
+			return nil, ErrConflict
+		}
+		p.receiver = true
+		return contextual(ctx, &publicationReader{PipeReader: p.r, s: s, id: id, p: p}), nil
+	}
 	if len(s.pushes) >= 16 {
 		return nil, ErrConflict
 	}
-	if p := s.pushes[id]; p != nil {
-		return nil, ErrConflict
-	}
 	r, w := io.Pipe()
-	p := &publicationPipe{r: r, w: w}
+	p := &publicationPipe{r: r, w: w, receiver: true}
 	s.pushes[id] = p
 	return contextual(ctx, &publicationReader{PipeReader: r, s: s, id: id, p: p}), nil
 }
@@ -157,28 +170,73 @@ func (s *Service) AttachPublisher(id string) (io.WriteCloser, error) {
 	s.pushMu.Lock()
 	defer s.pushMu.Unlock()
 	p := s.pushes[id]
-	if p == nil || p.publisher {
+	if p == nil {
+		if len(s.pushes) >= 16 {
+			return nil, ErrConflict
+		}
+		if s.pushes == nil {
+			s.pushes = map[string]*publicationPipe{}
+		}
+		r, w := io.Pipe()
+		p = &publicationPipe{r: r, w: w}
+		s.pushes[id] = p
+	}
+	if p.publisher {
 		return nil, ErrConflict
 	}
 	p.publisher = true
-	return p.w, nil
+	return &publicationWriter{WriteCloser: p.w, s: s, id: id, p: p}, nil
+}
+
+type publicationWriter struct {
+	io.WriteCloser
+	s    *Service
+	id   string
+	p    *publicationPipe
+	once sync.Once
+}
+
+func (w *publicationWriter) Close() error {
+	var e error
+	w.once.Do(func() {
+		e = w.WriteCloser.Close()
+		w.s.pushMu.Lock()
+		if !w.p.receiver && w.s.pushes[w.id] == w.p {
+			delete(w.s.pushes, w.id)
+			w.p.r.Close()
+		}
+		w.s.pushMu.Unlock()
+	})
+	return e
+}
+func (s *Service) PublicationWaiting(id string) bool {
+	s.pushMu.Lock()
+	defer s.pushMu.Unlock()
+	return s.pushes[id] != nil && s.pushes[id].receiver
 }
 func (s *Service) openCluster(ctx context.Context, in Input) (io.ReadCloser, error) {
 	client := s.httpClient()
 	transport := client.Transport.(*http.Transport)
-	if in.Certificate != "" {
-		expected, _ := hex.DecodeString(in.Certificate)
-		transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: true, VerifyConnection: func(cs tls.ConnectionState) error {
-			if len(cs.PeerCertificates) == 0 {
-				return ErrDenied
-			}
-			sum := sha256.Sum256(cs.PeerCertificates[0].Raw)
-			if subtle.ConstantTimeCompare(sum[:], expected) != 1 {
-				return ErrDenied
-			}
-			return nil
-		}}
+	transport.TLSClientConfig = clusterTLS(in.Certificate)
+	return requestCluster(ctx, in, client, transport.CloseIdleConnections)
+}
+func clusterTLS(pin string) *tls.Config {
+	if pin == "" {
+		return nil
 	}
+	expected, _ := hex.DecodeString(pin)
+	return &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: true, VerifyConnection: func(cs tls.ConnectionState) error {
+		if len(cs.PeerCertificates) == 0 {
+			return ErrDenied
+		}
+		sum := sha256.Sum256(cs.PeerCertificates[0].Raw)
+		if subtle.ConstantTimeCompare(sum[:], expected) != 1 {
+			return ErrDenied
+		}
+		return nil
+	}}
+}
+func requestCluster(ctx context.Context, in Input, client *http.Client, closeTransport func()) (io.ReadCloser, error) {
 	req, e := http.NewRequestWithContext(ctx, "GET", in.URL, nil)
 	if e != nil {
 		return nil, ErrInvalid
@@ -186,16 +244,16 @@ func (s *Service) openCluster(ctx context.Context, in Input) (io.ReadCloser, err
 	req.Header.Set("Authorization", "Bearer "+in.Token)
 	res, e := client.Do(req)
 	if e != nil {
-		transport.CloseIdleConnections()
+		closeTransport()
 		return nil, ErrUnavailable
 	}
 	if res.StatusCode != 200 {
 		res.Body.Close()
-		transport.CloseIdleConnections()
+		closeTransport()
 		return nil, ErrUnavailable
 	}
 	// Closing the dedicated transport bounds connections per configured peer.
-	return &clusterBody{ReadCloser: res.Body, closeTransport: transport.CloseIdleConnections}, nil
+	return &clusterBody{ReadCloser: res.Body, closeTransport: closeTransport}, nil
 }
 
 type clusterBody struct {

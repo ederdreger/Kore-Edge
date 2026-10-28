@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -80,6 +81,16 @@ func TestPublicationCredentialsAreScopedAndPipeIsBounded(t *testing.T) {
 	if !s.IngestAuthorized(id, p.Policy.Token, true) || s.IngestAuthorized(id, "bad", true) || s.IngestAuthorized("other", p.Policy.Token, true) {
 		t.Fatal("credential scope")
 	}
+	previous := p.Policy.Token
+	policy.RotateToken = true
+	if e = s.SaveProcessingPolicy(id, nil, nil, &policy, s.Revision()); e != nil {
+		t.Fatal(e)
+	}
+	p, _ = s.Processing(id)
+	if s.IngestAuthorized(id, previous, true) || p.Policy.Token == previous || !s.IngestAuthorized(id, p.Policy.Token, true) {
+		t.Fatal("token rotation did not revoke old credential")
+	}
+	policy.RotateToken = false
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	reader, e := s.openPublication(ctx, id)
@@ -204,18 +215,54 @@ func TestNativeBackupLogoAndRecovery(t *testing.T) {
 	if check.Run() != nil {
 		t.Fatal("logo output invalid")
 	}
-	// A failed source starts the reserve; cancellation must close process and slot.
-	p := Processing{Inputs: []Input{{Protocol: "http_ts", URL: "https://synthetic.example/main.ts"}}, Policy: policy}
-	mockFile(s, data)
-	switching, e := s.withBackup(ctx, id, p, nil, io.EOF, tool)
+	// Exercise the complete copy pipeline: reserve, remux, recovery, cancellation.
+	inputs := []Input{{Key: "primary", Protocol: "http_ts"}}
+	if e = s.SaveProcessingPolicy(id, &inputs, nil, &policy, s.Revision()); e != nil {
+		t.Fatal(e)
+	}
+	first := true
+	s.client = &http.Client{Transport: roundTrip(func(req *http.Request) (*http.Response, error) {
+		if first {
+			first = false
+			return &http.Response{StatusCode: 503, Header: http.Header{}, Body: io.NopCloser(bytes.NewReader(nil))}, nil
+		}
+		return &http.Response{StatusCode: 200, Header: http.Header{}, Body: &pacedSynthetic{ctx: req.Context(), data: data, done: make(chan struct{})}}, nil
+	})}
+	switching, _, e := s.OpenConfiguredMedia(ctx, id, "http_ts", tool, probe)
 	if e != nil {
 		t.Fatal(e)
 	}
 	if _, e = io.ReadFull(switching, make([]byte, 188*7)); e != nil {
 		t.Fatal(e)
 	}
+	drained := make(chan struct{})
+	go func() { io.Copy(io.Discard, switching); close(drained) }()
+	deadline := time.Now().Add(15 * time.Second)
+	recovered := false
+	for time.Now().Before(deadline) {
+		s.mu.Lock()
+		active := s.activeInput[id]
+		backup := s.mediaInfo[id].backup
+		s.mu.Unlock()
+		if active == "primary" && !backup {
+			recovered = true
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if !recovered {
+		switching.Close()
+		t.Fatal("origin did not recover from reserve")
+	}
+	time.Sleep(2 * time.Second)
+	select {
+	case <-drained:
+		t.Fatal("handoff cancelled healthy source")
+	default:
+	}
 	switching.Close()
-	if len(s.slots) != 0 {
+	<-drained
+	if len(s.slots) != 0 || len(s.transcodeSlots) != 0 {
 		t.Fatal("backup resource leak")
 	}
 	// Import rejects containers that have not passed the native MP4 probe.
@@ -224,3 +271,25 @@ func TestNativeBackupLogoAndRecovery(t *testing.T) {
 		t.Fatal("unprobed backup accepted")
 	}
 }
+
+type pacedSynthetic struct {
+	ctx    context.Context
+	data   []byte
+	done   chan struct{}
+	once   sync.Once
+	offset int
+}
+
+func (r *pacedSynthetic) Read(p []byte) (int, error) {
+	select {
+	case <-r.ctx.Done():
+		return 0, r.ctx.Err()
+	case <-r.done:
+		return 0, io.EOF
+	case <-time.After(10 * time.Millisecond):
+	}
+	n := copy(p, r.data[r.offset:])
+	r.offset = (r.offset + n) % len(r.data)
+	return n, nil
+}
+func (r *pacedSynthetic) Close() error { r.once.Do(func() { close(r.done) }); return nil }

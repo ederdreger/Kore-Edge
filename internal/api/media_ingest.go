@@ -1,6 +1,7 @@
 package api
 
 import (
+"context"
 	"io"
 	"net"
 	"net/http"
@@ -14,7 +15,7 @@ func (a *API) mediaIngest(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	host, _, e := net.SplitHostPort(r.RemoteAddr)
 	ip := net.ParseIP(host)
-	if e != nil || ip == nil || !ip.IsLoopback() || a.PublicOrigin == "" || a.ManualChannels == nil || a.Live == nil {
+	if e != nil || ip == nil || !ip.IsLoopback() || !samePlaybackOrigin(a.PublicOrigin, a.PublicOrigin) || a.ManualChannels == nil || a.Live == nil {
 		w.WriteHeader(403)
 		return
 	}
@@ -55,12 +56,26 @@ func (a *API) mediaIngest(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		a.Live.ServePersistentTS(w, r, id)
+		ctx,cancel:=context.WithCancel(r.Context());defer cancel();done:=make(chan struct{});defer close(done)
+		go func(){ticker:=time.NewTicker(time.Second);defer ticker.Stop();for{select{case<-done:return;case<-ctx.Done():return;case<-ticker.C:if !a.ManualChannels.IngestAuthorized(id,strings.TrimPrefix(auth,"Bearer "),false){cancel();return}}}}()
+		a.Live.ServePersistentTS(w, r.WithContext(ctx), id)
 		return
 	}
 	if r.Method != "POST" && r.Method != "PUT" {
 		w.WriteHeader(405)
 		return
+	}
+	if !a.ManualChannels.PublicationWaiting(id) {
+		desired := false
+		for _, stream := range a.Live.Snapshot().Streams {
+			if stream.ChannelID == id && stream.State != "stopped" && stream.State != "unauthorized" {
+				desired = true
+			}
+		}
+		if !desired {
+			w.WriteHeader(409)
+			return
+		}
 	}
 	writer, e := a.ManualChannels.AttachPublisher(id)
 	if e != nil {
@@ -87,8 +102,15 @@ func (a *API) mediaIngest(w http.ResponseWriter, r *http.Request) {
 			case <-stop:
 				return
 			case <-r.Context().Done():
+				writer.Close()
+				r.Body.Close()
 				return
 			case <-ticker.C:
+				if !a.ManualChannels.IngestAuthorized(id, strings.TrimPrefix(auth, "Bearer "), true) {
+					writer.Close()
+					r.Body.Close()
+					return
+				}
 				controller.SetWriteDeadline(time.Now().Add(5 * time.Second))
 				if _, e := w.Write([]byte("\n")); e != nil {
 					writer.Close()
