@@ -59,7 +59,7 @@ it('opens in passthrough and saves an explicit validated encoder profile',async(
  const save=screen.getByRole('button',{name:'Salvar configuração'});expect((save as HTMLButtonElement).disabled).toBe(true);
  fireEvent.change(screen.getByLabelText('Dispositivo'),{target:{value:'cpu'}});fireEvent.click(save);
  await screen.findByText(/Configuração salva/);
- expect(call.mock.calls.find(v=>v[0]==='POST')?.[2]).toMatchObject({action:'transcode',transcode:{mode:'h264',device:'cpu',video_kbps:3000,width:1280,height:720,fps:25,audio:'aac',audio_kbps:128}});
+ expect(call.mock.calls.find(v=>v[0]==='POST')?.[2]).toMatchObject({action:'transcode',transcode:{mode:'h264',device:'cpu',tracks:[{video_kbps:3000,width:1280,height:720}],fps:25,audio:'aac',audio_kbps:128}});
  fireEvent.click(screen.getByRole('radio',{name:'Transmitir sem transcodificar'}));fireEvent.click(save);
  await waitFor(()=>expect(call.mock.calls.filter(v=>v[0]==='POST')).toHaveLength(2));
  expect(call.mock.calls.filter(v=>v[0]==='POST')[1][2].transcode).toEqual({mode:'copy'});

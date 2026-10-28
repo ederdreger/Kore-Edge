@@ -149,7 +149,10 @@ func (p *processInput) Close() error {
 	return nil
 }
 func executable(raw string) bool {
-	if !filepath.IsAbs(raw) || (filepath.Base(raw) != "ffmpeg" && filepath.Base(raw) != "ffmpeg.exe") {
+	return trustedExecutable(raw, "ffmpeg")
+}
+func trustedExecutable(raw, name string) bool {
+	if !filepath.IsAbs(raw) || (filepath.Base(raw) != name && filepath.Base(raw) != name+".exe") {
 		return false
 	}
 	p, e := filepath.EvalSymlinks(raw)

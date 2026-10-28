@@ -151,12 +151,34 @@ render_legacy_panel_gateway() {
     -e '/^[[:space:]]*auth_basic_user_file /d' \
     -e '/limit_except GET HEAD/d' \
     -e '/proxy_set_header Origin /d' \
-    -e 's/client_max_body_size 1k;/client_max_body_size 16k;/'
+    -e 's/client_max_body_size 1k;/client_max_body_size 64k;/'
 }
 
 # Only capability-protected embed documents may be framed. The dashboard keeps DENY.
 render_panel_gateway() {
  render_legacy_panel_gateway "$@" | awk '
+ /^[[:space:]]*location \/ \{/ {
+  print "    location ~ ^/api/v1/(publish|cluster)/[A-Za-z0-9_-]+/stream[.]ts$ {"
+  print "      client_max_body_size 0;"
+  print "      client_body_timeout 25s;"
+  print "      proxy_http_version 1.1;"
+  print "      proxy_request_buffering off;"
+  print "      proxy_buffering off;"
+  print "      proxy_read_timeout 60s;"
+  print "      proxy_send_timeout 25s;"
+  print "      proxy_set_header Authorization $http_authorization;"
+  print "      proxy_set_header Cookie \"\";"
+  print "      proxy_set_header Connection \"\";"
+  print "      proxy_set_header X-Forwarded-For \"\";"
+  print "      proxy_pass http://__MEDIA_BACKEND__;"
+  print "    }"
+  print "    location = /api/v1/manual-channels/assets {"
+  print "      client_max_body_size 16k;"
+  print "      proxy_read_timeout 60s;"
+  print "      proxy_set_header Authorization \"\";"
+  print "      proxy_pass http://__MEDIA_BACKEND__;"
+  print "    }"
+ }
  /^[[:space:]]*server \{/ {
   print "  map $uri $kore_frame_options {"
   print "    default DENY;"
@@ -164,7 +186,7 @@ render_panel_gateway() {
   print "  }"
  }
  {gsub(/add_header X-Frame-Options DENY always;/,"add_header X-Frame-Options $kore_frame_options always;");print}
- '
+ ' | sed "s/__MEDIA_BACKEND__/$3/g"
 }
 # Probe the reviewed public TLS identity through loopback, without browser state,
 # proxy environment or ~/.curlrc. Never weaken certificate verification.

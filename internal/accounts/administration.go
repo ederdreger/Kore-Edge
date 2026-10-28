@@ -22,7 +22,7 @@ func (s *Store) ChannelChange(actor User, action string, change func() error) (r
 	}
 	defer s.channelMu.Unlock()
 	s.mu.Lock()
-	if s.closed || actor.Role != "admin" || (action != "manual_channel_save" && action != "manual_channel_inputs" && action != "manual_channel_transcode" && action != "manual_channel_metadata" && action != "manual_channel_delete" && action != "manual_channel_probe" && action != "live_config" && action != "live_start" && action != "live_stop") {
+	if s.closed || actor.Role != "admin" || (action != "media_asset_import" && action != "media_asset_delete" && action != "manual_channel_save" && action != "manual_channel_inputs" && action != "manual_channel_transcode" && action != "manual_channel_metadata" && action != "manual_channel_delete" && action != "manual_channel_probe" && action != "live_config" && action != "live_start" && action != "live_stop") {
 		s.mu.Unlock()
 		return ErrRejected
 	}

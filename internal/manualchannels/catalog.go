@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"sync"
 )
 
 type Catalog interface {
@@ -37,9 +38,22 @@ type Service struct {
 	slots          chan struct{}
 	dialSRT        func(string, string, srt.Config) (srt.Conn, error)
 	command        func(context.Context, string, ...string) *exec.Cmd
+	assetsMu       sync.Mutex
+	imports        chan struct{}
+	pushMu         sync.Mutex
+	pushes         map[string]*publicationPipe
 }
 
-func (s *Service) Close() { s.client.CloseIdleConnections() }
+func (s *Service) Close() {
+	s.client.CloseIdleConnections()
+	s.pushMu.Lock()
+	defer s.pushMu.Unlock()
+	for id, p := range s.pushes {
+		p.r.Close()
+		p.w.Close()
+		delete(s.pushes, id)
+	}
+}
 
 func (s *Service) Snapshot() edgecatalog.Snapshot {
 	var out edgecatalog.Snapshot

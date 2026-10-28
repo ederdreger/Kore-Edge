@@ -20,26 +20,41 @@ import (
 // Processing is separate from the legacy origin file so old releases can roll back.
 // Input URLs are write-only; inventory returns stable keys and sanitized addresses.
 type Input struct {
-	Key       string `json:"key"`
-	URL       string `json:"url,omitempty"`
-	Protocol  string `json:"protocol"`
-	Interface string `json:"interface,omitempty"`
-	LocalIP   string `json:"local_ip,omitempty"`
+	Key           string `json:"key"`
+	URL           string `json:"url,omitempty"`
+	Protocol      string `json:"protocol"`
+	Interface     string `json:"interface,omitempty"`
+	LocalIP       string `json:"local_ip,omitempty"`
+	SourceTimeout int    `json:"source_timeout,omitempty"`
+	Token         string `json:"token,omitempty"`
+	Certificate   string `json:"certificate,omitempty"`
 }
 type Transcode struct {
-	Mode      string `json:"mode"`
-	Device    string `json:"device,omitempty"`
-	VideoKbps int    `json:"video_kbps,omitempty"`
-	Width     int    `json:"width,omitempty"`
-	Height    int    `json:"height,omitempty"`
-	FPS       int    `json:"fps,omitempty"`
-	Audio     string `json:"audio,omitempty"`
-	AudioKbps int    `json:"audio_kbps,omitempty"`
+	logoPaths     map[string]string
+	Mode          string       `json:"mode"`
+	Device        string       `json:"device,omitempty"`
+	VideoKbps     int          `json:"video_kbps,omitempty"`
+	Width         int          `json:"width,omitempty"`
+	Height        int          `json:"height,omitempty"`
+	FPS           int          `json:"fps,omitempty"`
+	Audio         string       `json:"audio,omitempty"`
+	AudioKbps     int          `json:"audio_kbps,omitempty"`
+	VideoCopy     bool         `json:"video_copy,omitempty"`
+	SampleRate    int          `json:"sample_rate,omitempty"`
+	Channels      int          `json:"channels,omitempty"`
+	VolumeDB      float64      `json:"volume_db,omitempty"`
+	SplitChannels bool         `json:"split_channels,omitempty"`
+	Deinterlace   string       `json:"deinterlace,omitempty"`
+	Crop          string       `json:"crop,omitempty"`
+	GOP           int          `json:"gop,omitempty"`
+	PixelFormat   string       `json:"pixel_format,omitempty"`
+	Tracks        []VideoTrack `json:"tracks,omitempty"`
 }
 type Processing struct {
-	Base      string    `json:"base"`
-	Inputs    []Input   `json:"inputs"`
-	Transcode Transcode `json:"transcode"`
+	Base      string      `json:"base"`
+	Inputs    []Input     `json:"inputs"`
+	Transcode Transcode   `json:"transcode"`
+	Policy    InputPolicy `json:"policy,omitempty"`
 }
 type processingState struct {
 	Version  int                   `json:"version"`
@@ -47,11 +62,13 @@ type processingState struct {
 	Entries  map[string]Processing `json:"entries"`
 }
 type InputView struct {
-	Key       string `json:"key"`
-	Address   string `json:"address"`
-	Protocol  string `json:"protocol"`
-	Interface string `json:"interface"`
-	LocalIP   string `json:"local_ip"`
+	Key           string `json:"key"`
+	Address       string `json:"address"`
+	Protocol      string `json:"protocol"`
+	Interface     string `json:"interface"`
+	LocalIP       string `json:"local_ip"`
+	SourceTimeout int    `json:"source_timeout,omitempty"`
+	Certificate   string `json:"certificate,omitempty"`
 }
 type ProcessingView struct {
 	Revision      uint64         `json:"revision"`
@@ -63,6 +80,8 @@ type ProcessingView struct {
 	InputSRT      *SRTMediaStats `json:"input_srt,omitempty"`
 	InputMedia    *MediaInfo     `json:"input_media,omitempty"`
 	OutputMedia   *MediaInfo     `json:"output_media,omitempty"`
+	Policy        InputPolicy    `json:"policy"`
+	BackupActive  bool           `json:"backup_active"`
 }
 
 var processingID = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,80}$`)
@@ -74,10 +93,7 @@ func fingerprint(c Source) string {
 	return hex.EncodeToString(hash[:])
 }
 func validateTranscode(t Transcode) bool {
-	if t.Mode == "copy" {
-		return t.Device == "" && t.VideoKbps == 0 && t.Width == 0 && t.Height == 0 && t.FPS == 0 && t.Audio == "" && t.AudioKbps == 0
-	}
-	return t.Mode == "h264" && (t.Device == "cpu" || regexp.MustCompile(`^(nvidia:[0-9]{1,2}|vaapi:renderD[0-9]{3})$`).MatchString(t.Device)) && t.VideoKbps >= 200 && t.VideoKbps <= 30000 && t.Width >= 160 && t.Width <= 3840 && t.Width%2 == 0 && t.Height >= 90 && t.Height <= 2160 && t.Height%2 == 0 && t.FPS >= 1 && t.FPS <= 60 && (t.Audio == "copy" || t.Audio == "aac" && t.AudioKbps >= 32 && t.AudioKbps <= 320)
+	return validTranscode(t)
 }
 func (s *Service) loadProcessing() error {
 	s.processing = processingState{Version: 1, Entries: map[string]Processing{}}
@@ -92,16 +108,19 @@ func (s *Service) loadProcessing() error {
 		return ErrUnavailable
 	}
 	for id, p := range s.processing.Entries {
-		if !processingID.MatchString(id) || !validateTranscode(p.Transcode) || len(p.Inputs) > 8 || localID.MatchString(id) && (len(p.Inputs) < 1 || !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(p.Base)) || !localID.MatchString(id) && (len(p.Inputs) != 0 || p.Base != "") {
+		if !validPolicy(p.Policy) || !processingID.MatchString(id) || !validateTranscode(p.Transcode) || len(p.Inputs) > 8 || localID.MatchString(id) && (len(p.Inputs) < 1 || !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(p.Base)) || !localID.MatchString(id) && (len(p.Inputs) != 0 || p.Base != "") {
 			return ErrUnavailable
 		}
 		keys := map[string]bool{}
 		for _, in := range p.Inputs {
+			if in.SourceTimeout != 0 && (in.SourceTimeout < 2 || in.SourceTimeout > 300) {
+				return ErrUnavailable
+			}
 			if !inputKey.MatchString(in.Key) || keys[in.Key] {
 				return ErrUnavailable
 			}
 			keys[in.Key] = true
-			if _, e := normalize(Source{Name: "Input", URL: in.URL, Protocol: in.Protocol, Interface: in.Interface, LocalIP: in.LocalIP}); e != nil {
+			if _, e := normalizeInput(in); e != nil {
 				return ErrUnavailable
 			}
 		}
@@ -142,8 +161,9 @@ func (s *Service) Processing(id string) (ProcessingView, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p := s.processingLocked(id, c)
-	out := ProcessingView{Revision: s.revisionLocked(), Inputs: []InputView{}, Transcode: p.Transcode, ActiveKey: s.activeInput[id], Local: ok}
+	out := ProcessingView{Revision: s.revisionLocked(), Inputs: []InputView{}, Transcode: p.Transcode, ActiveKey: s.activeInput[id], Local: ok, Policy: p.Policy}
 	if media := s.mediaInfo[id]; media != nil {
+		out.BackupActive = media.backup
 		out.InputMedia, out.OutputMedia = media.input, media.output
 		out.InputReceiver = media.receiver
 		if media.srt != nil {
@@ -151,8 +171,15 @@ func (s *Service) Processing(id string) (ProcessingView, error) {
 		}
 	}
 	for _, in := range p.Inputs {
-		u, _ := parse(in.URL)
-		out.Inputs = append(out.Inputs, InputView{in.Key, safeAddress(u), in.Protocol, in.Interface, in.LocalIP})
+		address := "publish://incoming"
+		if in.Protocol != "publish" {
+			u, e := parse(in.URL)
+			if e != nil {
+				return ProcessingView{}, ErrUnavailable
+			}
+			address = safeAddress(u)
+		}
+		out.Inputs = append(out.Inputs, InputView{in.Key, address, in.Protocol, in.Interface, in.LocalIP, in.SourceTimeout, in.Certificate})
 	}
 	return out, nil
 }
@@ -160,8 +187,11 @@ func (s *Service) Processing(id string) (ProcessingView, error) {
 // SaveProcessing validates all inputs before writing. Existing secrets are retained by key.
 // A nil inputs argument edits only processing; nil transcode edits only inputs.
 func (s *Service) SaveProcessing(id string, inputs *[]Input, transcode *Transcode, expected uint64) error {
+	return s.SaveProcessingPolicy(id, inputs, transcode, nil, expected)
+}
+func (s *Service) SaveProcessingPolicy(id string, inputs *[]Input, transcode *Transcode, policy *InputPolicy, expected uint64) error {
 	c, local := s.source(id)
-	if !processingID.MatchString(id) || !local && inputs != nil {
+	if !processingID.MatchString(id) || !local && (inputs != nil || policy != nil) {
 		return ErrInvalid
 	}
 	if _, e := s.Processing(id); e != nil {
@@ -185,6 +215,9 @@ func (s *Service) SaveProcessing(id string, inputs *[]Input, transcode *Transcod
 		next := []Input{}
 		seen := map[string]bool{}
 		for _, v := range *inputs {
+			if v.SourceTimeout != 0 && (v.SourceTimeout < 2 || v.SourceTimeout > 300) {
+				return ErrInvalid
+			}
 			if v.Key == "" {
 				v.Key = random()
 			}
@@ -198,13 +231,16 @@ func (s *Service) SaveProcessing(id string, inputs *[]Input, transcode *Transcod
 					return ErrInvalid
 				}
 				v.URL = old.URL
+				if v.Token == "" && v.Protocol == "cluster" {
+					v.Token = old.Token
+				}
 			}
-			normalized, e := normalize(Source{Name: "Input", URL: v.URL, Protocol: v.Protocol, Interface: v.Interface, LocalIP: v.LocalIP})
+			normalized, e := normalizeInput(v)
 			if e != nil {
 				return e
 			}
 			if normalized.Protocol == "udp" {
-				if _, e = s.udpTarget(normalized); e != nil {
+				if _, e = s.udpTarget(Source{URL: normalized.URL, Protocol: normalized.Protocol, Interface: normalized.Interface, LocalIP: normalized.LocalIP}); e != nil {
 					return e
 				}
 			}
@@ -214,11 +250,55 @@ func (s *Service) SaveProcessing(id string, inputs *[]Input, transcode *Transcod
 		}
 		p.Inputs = next
 	}
+	if policy != nil {
+		if !validPolicy(*policy) {
+			return ErrInvalid
+		}
+		nextPolicy := *policy
+		nextPolicy.Token = p.Policy.Token
+		if (nextPolicy.Publication || nextPolicy.ClusterExport) && (nextPolicy.Token == "" || nextPolicy.RotateToken) {
+			nextPolicy.Token = random()
+			if !inputKey.MatchString(nextPolicy.Token) || nextPolicy.Token == "primary" {
+				return ErrUnavailable
+			}
+		}
+		nextPolicy.RotateToken = false
+		if nextPolicy.BackupAsset != "" {
+			if _, e := s.assetPath(nextPolicy.BackupAsset, "backup"); e != nil {
+				return e
+			}
+		}
+		p.Policy = nextPolicy
+		if p.Policy.BackupAsset != "" && p.Policy.BackupTimeout == 0 {
+			p.Policy.BackupTimeout = 5
+		}
+	}
+	for _, in := range p.Inputs {
+		if in.Protocol == "publish" && !p.Policy.Publication {
+			return ErrInvalid
+		}
+		if in.Protocol == "cluster" && p.Policy.ClusterExport {
+			return ErrInvalid
+		}
+	}
 	if transcode != nil {
 		if !validateTranscode(*transcode) {
 			return ErrInvalid
 		}
+		for _, v := range transcode.Tracks {
+			if v.Logo != "" {
+				if _, e := s.assetPath(v.Logo, "logo"); e != nil {
+					return e
+				}
+			}
+		}
 		p.Transcode = *transcode
+		if transcode.Mode != "copy" && p.Policy.BackupAsset != "" {
+			p.Policy.BackupTranscode = true
+		}
+	}
+	if p.Policy.BackupAsset != "" && p.Transcode.Mode != "copy" && !p.Policy.BackupTranscode {
+		return ErrInvalid
 	}
 	if reflect.DeepEqual(previous, p) {
 		return nil
@@ -258,6 +338,42 @@ func (s *Service) OpenConfigured(ctx context.Context, id, protocol, ffmpeg strin
 	return s.OpenConfiguredMedia(ctx, id, protocol, ffmpeg, "")
 }
 
+// SourceIdleTimeout overrides only the live no-payload watchdog for the selected input.
+// Zero retains the established receiver defaults.
+func (s *Service) SourceIdleTimeout(id string) int {
+	c, ok := s.source(id)
+	if !ok {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := s.processingLocked(id, c)
+	if p.Policy.BackupAsset != "" {
+		if media := s.mediaInfo[id]; media != nil && media.backup {
+			return 0
+		}
+		seconds := p.Policy.BackupTimeout
+		if seconds == 0 {
+			seconds = 5
+		}
+		for _, in := range p.Inputs {
+			if in.Key == s.activeInput[id] && in.SourceTimeout > 0 && in.SourceTimeout < seconds {
+				seconds = in.SourceTimeout
+			}
+		}
+		if seconds > 297 {
+			return 300
+		}
+		return seconds + 3
+	}
+	for _, in := range p.Inputs {
+		if in.Key == s.activeInput[id] {
+			return in.SourceTimeout
+		}
+	}
+	return 0
+}
+
 func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg, ffprobe string) (io.ReadCloser, bool, error) {
 	c, local := s.source(id)
 	s.mu.Lock()
@@ -274,7 +390,7 @@ func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg,
 	}
 	release := func() {}
 	retained := false
-	if p.Transcode.Mode != "copy" {
+	if p.Transcode.Mode != "copy" || p.Policy.BackupAsset != "" {
 		var reserveError error
 		release, reserveError = s.reserveEncoder()
 		if reserveError != nil {
@@ -296,27 +412,7 @@ func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg,
 			}
 			i := (start + n) % len(p.Inputs)
 			in := p.Inputs[i]
-			candidate := Source{URL: in.URL, Protocol: in.Protocol, Interface: in.Interface, LocalIP: in.LocalIP}
-			switch in.Protocol {
-			case "http_ts":
-				var responseBody io.ReadCloser
-				response, e := s.openHTTP(ctx, in.URL, "")
-				err = e
-				if e == nil {
-					responseBody = response.Body
-				}
-				reader = responseBody
-			case "hls":
-				reader, err = s.openHLS(ctx, candidate, ffmpeg)
-			case "srt":
-				if ffmpeg != "" {
-					reader, err = s.openNativeSRT(ctx, candidate, ffmpeg)
-				} else {
-					reader, err = s.openSRT(ctx, candidate)
-				}
-			case "udp":
-				reader, err = s.openUDP(ctx, candidate)
-			}
+			reader, err = s.openInput(ctx, id, in, ffmpeg)
 			if errors.Is(err, mediaresources.ErrBusy) {
 				return nil, true, err
 			}
@@ -325,6 +421,9 @@ func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg,
 				s.nextInput[id] = (i + 1) % len(p.Inputs)
 				s.activeInput[id] = in.Key
 				s.mu.Unlock()
+				break
+			}
+			if p.Policy.BackupAsset != "" {
 				break
 			}
 		}
@@ -339,6 +438,12 @@ func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg,
 		default:
 			err = ErrInvalid
 		}
+	}
+	if local && reader != nil {
+		reader = watchPackets(ctx, reader, p.Policy.BackupTimeout, p.Policy.VideoTimeout, p.Policy.AudioTimeout)
+	}
+	if local && p.Policy.BackupAsset != "" {
+		reader, err = s.withBackup(ctx, id, p, reader, err, ffmpeg)
 	}
 	if err != nil {
 		return nil, true, err
@@ -377,6 +482,11 @@ func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg,
 	}
 	reader = observeMedia(ctx, reader, ffprobe, record(true), media.inputRate)
 	if p.Transcode.Mode == "copy" {
+		if p.Policy.BackupAsset != "" {
+			result, e := s.copyReserved(ctx, reader, ffmpeg, release)
+			retained = e == nil
+			return result, true, e
+		}
 		return reader, true, nil
 	}
 	result, e := s.encodeReserved(ctx, reader, ffmpeg, p.Transcode, release)
