@@ -483,3 +483,11 @@ TS em eixos separados, com legenda e consulta de amostras por mouse ou teclado.
 Taxas medem payload, nao banda fisica. UDP/SRT/RTMP/RTSP/DASH nao sao somados
 nessa serie HTTP. Conexoes TS nao sao usuarios unicos nem sessoes HLS.
 Amostras indisponiveis nao viram zero. A recepcao e o player foram preservados.
+
+## Entrada e processamento de midia
+
+A aba Entrada mantem o rascunho ate salvar: adicionar, substituir, reordenar e
+remover URLs, com protecao ao sair. Transcodificacao separa audio/video, oferece
+ate tres faixas H.264 e controles validados por dispositivo. Copy permanece o
+padrao. HLS/player usam a primeira faixa; o TS contem as faixas configuradas.
+Veja [controles, limites e aceite](docs/MIDIA-ENTRADA-TRANSCODIFICACAO.md).

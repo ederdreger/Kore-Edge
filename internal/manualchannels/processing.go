@@ -20,21 +20,32 @@ import (
 // Processing is separate from the legacy origin file so old releases can roll back.
 // Input URLs are write-only; inventory returns stable keys and sanitized addresses.
 type Input struct {
-	Key       string `json:"key"`
-	URL       string `json:"url,omitempty"`
-	Protocol  string `json:"protocol"`
-	Interface string `json:"interface,omitempty"`
-	LocalIP   string `json:"local_ip,omitempty"`
+	Key           string `json:"key"`
+	URL           string `json:"url,omitempty"`
+	Protocol      string `json:"protocol"`
+	Interface     string `json:"interface,omitempty"`
+	LocalIP       string `json:"local_ip,omitempty"`
+	SourceTimeout int    `json:"source_timeout,omitempty"`
 }
 type Transcode struct {
-	Mode      string `json:"mode"`
-	Device    string `json:"device,omitempty"`
-	VideoKbps int    `json:"video_kbps,omitempty"`
-	Width     int    `json:"width,omitempty"`
-	Height    int    `json:"height,omitempty"`
-	FPS       int    `json:"fps,omitempty"`
-	Audio     string `json:"audio,omitempty"`
-	AudioKbps int    `json:"audio_kbps,omitempty"`
+	Mode          string       `json:"mode"`
+	Device        string       `json:"device,omitempty"`
+	VideoKbps     int          `json:"video_kbps,omitempty"`
+	Width         int          `json:"width,omitempty"`
+	Height        int          `json:"height,omitempty"`
+	FPS           int          `json:"fps,omitempty"`
+	Audio         string       `json:"audio,omitempty"`
+	AudioKbps     int          `json:"audio_kbps,omitempty"`
+	VideoCopy     bool         `json:"video_copy,omitempty"`
+	SampleRate    int          `json:"sample_rate,omitempty"`
+	Channels      int          `json:"channels,omitempty"`
+	VolumeDB      float64      `json:"volume_db,omitempty"`
+	SplitChannels bool         `json:"split_channels,omitempty"`
+	Deinterlace   string       `json:"deinterlace,omitempty"`
+	Crop          string       `json:"crop,omitempty"`
+	GOP           int          `json:"gop,omitempty"`
+	PixelFormat   string       `json:"pixel_format,omitempty"`
+	Tracks        []VideoTrack `json:"tracks,omitempty"`
 }
 type Processing struct {
 	Base      string    `json:"base"`
@@ -47,11 +58,12 @@ type processingState struct {
 	Entries  map[string]Processing `json:"entries"`
 }
 type InputView struct {
-	Key       string `json:"key"`
-	Address   string `json:"address"`
-	Protocol  string `json:"protocol"`
-	Interface string `json:"interface"`
-	LocalIP   string `json:"local_ip"`
+	Key           string `json:"key"`
+	Address       string `json:"address"`
+	Protocol      string `json:"protocol"`
+	Interface     string `json:"interface"`
+	LocalIP       string `json:"local_ip"`
+	SourceTimeout int    `json:"source_timeout,omitempty"`
 }
 type ProcessingView struct {
 	Revision      uint64         `json:"revision"`
@@ -74,10 +86,7 @@ func fingerprint(c Source) string {
 	return hex.EncodeToString(hash[:])
 }
 func validateTranscode(t Transcode) bool {
-	if t.Mode == "copy" {
-		return t.Device == "" && t.VideoKbps == 0 && t.Width == 0 && t.Height == 0 && t.FPS == 0 && t.Audio == "" && t.AudioKbps == 0
-	}
-	return t.Mode == "h264" && (t.Device == "cpu" || regexp.MustCompile(`^(nvidia:[0-9]{1,2}|vaapi:renderD[0-9]{3})$`).MatchString(t.Device)) && t.VideoKbps >= 200 && t.VideoKbps <= 30000 && t.Width >= 160 && t.Width <= 3840 && t.Width%2 == 0 && t.Height >= 90 && t.Height <= 2160 && t.Height%2 == 0 && t.FPS >= 1 && t.FPS <= 60 && (t.Audio == "copy" || t.Audio == "aac" && t.AudioKbps >= 32 && t.AudioKbps <= 320)
+	return validTranscode(t)
 }
 func (s *Service) loadProcessing() error {
 	s.processing = processingState{Version: 1, Entries: map[string]Processing{}}
@@ -97,6 +106,9 @@ func (s *Service) loadProcessing() error {
 		}
 		keys := map[string]bool{}
 		for _, in := range p.Inputs {
+			if in.SourceTimeout != 0 && (in.SourceTimeout < 2 || in.SourceTimeout > 300) {
+				return ErrUnavailable
+			}
 			if !inputKey.MatchString(in.Key) || keys[in.Key] {
 				return ErrUnavailable
 			}
@@ -152,7 +164,7 @@ func (s *Service) Processing(id string) (ProcessingView, error) {
 	}
 	for _, in := range p.Inputs {
 		u, _ := parse(in.URL)
-		out.Inputs = append(out.Inputs, InputView{in.Key, safeAddress(u), in.Protocol, in.Interface, in.LocalIP})
+		out.Inputs = append(out.Inputs, InputView{in.Key, safeAddress(u), in.Protocol, in.Interface, in.LocalIP, in.SourceTimeout})
 	}
 	return out, nil
 }
@@ -185,6 +197,9 @@ func (s *Service) SaveProcessing(id string, inputs *[]Input, transcode *Transcod
 		next := []Input{}
 		seen := map[string]bool{}
 		for _, v := range *inputs {
+			if v.SourceTimeout != 0 && (v.SourceTimeout < 2 || v.SourceTimeout > 300) {
+				return ErrInvalid
+			}
 			if v.Key == "" {
 				v.Key = random()
 			}
@@ -256,6 +271,24 @@ func (s *Service) SaveProcessing(id string, inputs *[]Input, transcode *Transcod
 // Sources without a local registration or processing profile use the legacy path.
 func (s *Service) OpenConfigured(ctx context.Context, id, protocol, ffmpeg string) (io.ReadCloser, bool, error) {
 	return s.OpenConfiguredMedia(ctx, id, protocol, ffmpeg, "")
+}
+
+// SourceIdleTimeout overrides only the live no-payload watchdog for the selected input.
+// Zero retains the established receiver defaults.
+func (s *Service) SourceIdleTimeout(id string) int {
+	c, ok := s.source(id)
+	if !ok {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := s.processingLocked(id, c)
+	for _, in := range p.Inputs {
+		if in.Key == s.activeInput[id] {
+			return in.SourceTimeout
+		}
+	}
+	return 0
 }
 
 func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg, ffprobe string) (io.ReadCloser, bool, error) {

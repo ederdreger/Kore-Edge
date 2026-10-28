@@ -129,18 +129,7 @@ func (p *encodedInput) Close() error {
 	p.once.Do(func() { p.cancel(); p.input.Close(); p.reader.Close(); <-p.done })
 	return nil
 }
-func transcodeArgs(t Transcode) []string {
-	args := append([]string{"-hide_banner", "-loglevel", "quiet", "-nostdin"}, deviceArgs(t.Device)...)
-	args = append(args, "-protocol_whitelist", "pipe", "-f", "mpegts", "-analyzeduration", "2000000", "-probesize", "2000000", "-i", "pipe:0", "-map", "0:v:0", "-map", "0:a:0?", "-vf", videoFilter(t.Device, t.Width, t.Height))
-	args = append(args, encoderArgs(t.Device)...)
-	args = append(args, "-b:v", strconv.Itoa(t.VideoKbps)+"k", "-maxrate", strconv.Itoa(t.VideoKbps)+"k", "-bufsize", strconv.Itoa(t.VideoKbps*2)+"k", "-r", strconv.Itoa(t.FPS), "-g", strconv.Itoa(t.FPS*2), "-bf", "0")
-	if t.Audio == "copy" {
-		args = append(args, "-c:a", "copy")
-	} else {
-		args = append(args, "-c:a", "aac", "-b:a", strconv.Itoa(t.AudioKbps)+"k", "-ar", "48000", "-ac", "2")
-	}
-	return append(args, "-mpegts_flags", "+resend_headers+initial_discontinuity", "-flush_packets", "1", "-f", "mpegts", "pipe:1")
-}
+func transcodeArgs(t Transcode) []string { return configuredTranscodeArgs(t) }
 func (s *Service) reserveEncoder() (func(), error) {
 	select {
 	case s.transcodeSlots <- struct{}{}:
