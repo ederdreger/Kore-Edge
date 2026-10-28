@@ -362,6 +362,10 @@ por reiniciar. Qualidade mostra interrupções, horário da falha e próxima ten
 A recuperação evita depender de ação manual para quedas de transporte; não garante
 vídeo sem cortes quando a origem, o link ou o navegador estiverem indisponíveis.
 
+O player TS continuo aguarda seis segundos de buffer antes de iniciar e preserva
+essa margem sem saltos automaticos para a borda ao vivo. Isso acrescenta atraso
+ao inicio; nao corrige indisponibilidade da origem.
+
 ### Orçamento de processos de mídia
 
 O agente usa, por padrão, duas CPUs lógicas para o runtime Go, limite suave de
