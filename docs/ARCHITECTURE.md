@@ -10,7 +10,11 @@ administrativa, CSRF, auditoria e geração vigente, sem confirmação adicional
 canal e fan-out limitado para prévias, UDP e segmentador HLS. Revogação encerra
 o fluxo; a lease assinada não é estendida por falhas de sincronização.
 
-SRT usa Go puro com AES e segredo por parceiro derivado da identidade X25519.
+Entradas SRT manuais com FFmpeg configurado usam libsrt, remux em copy e
+parametros privados em stdin, com IP validado/fixado e capacidade compartilhada
+com entradas HLS. Sem FFmpeg, permanece o receptor Go legado.
+
+O SRT da integracao assinada Kore Play usa Go puro com AES e segredo por parceiro derivado da identidade X25519.
 A matriz escuta somente no IP WireGuard revisado, valida IP do peer, stream ID,
 permissões e cotas. O Edge verifica endereço da interface e seleção de origem
 antes e depois do handshake. A biblioteca não recebe URLs/segredos em argv.

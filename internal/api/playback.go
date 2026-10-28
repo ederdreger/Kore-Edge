@@ -187,6 +187,7 @@ func (a *API) externalPlayback(w http.ResponseWriter, r *http.Request) {
 						if media, err := a.ManualChannels.Processing(id); err == nil {
 							// Explicit allowlist: never serialize source addresses or credentials.
 							info["input_media"], info["output_media"], info["input_srt"] = media.InputMedia, media.OutputMedia, media.InputSRT
+							info["input_receiver"] = media.InputReceiver
 							for _, input := range media.Inputs {
 								if input.Key == media.ActiveKey {
 									info["input_protocol"] = input.Protocol
