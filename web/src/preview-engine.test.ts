@@ -88,3 +88,23 @@ it('never automatically retries a continuous HLS authorization refusal',async()=
  let last:PreviewStatus|undefined;stop=startPreview(video,{...source,scope:'output'},s=>{last=s});await vi.waitFor(()=>expect(mocks.hlsAttach).toHaveBeenCalled());
  mocks.hlsHandlers.get('error')('error',{fatal:true,response:{code:403}});expect(last?.retryable).toBe(false);
 });
+
+it('buffers bursty continuous TS before playing without reopening the stream',async()=>{
+ let end=2;
+ Object.defineProperty(video,'buffered',{value:{length:1,start:()=>0,end:()=>end}});
+ stop=startPreview(video,{...source,protocol:'http_ts',scope:'live'},vi.fn());
+ await vi.waitFor(()=>expect(mocks.tsLoad).toHaveBeenCalledTimes(1));
+ expect(video.play).not.toHaveBeenCalled();
+ expect(mocks.tsCreate.mock.calls[0][1].liveBufferLatencyChasing).toBe(false);
+ end=6;
+ await vi.waitFor(()=>expect(video.play).toHaveBeenCalledTimes(1));
+ video.dispatchEvent(new Event('waiting'));
+ expect(mocks.tsDestroy).not.toHaveBeenCalled();expect(mocks.tsLoad).toHaveBeenCalledTimes(1);
+});
+it('cancels pending buffer startup when closing a continuous player',async()=>{
+ Object.defineProperty(video,'buffered',{value:{length:0}});
+ stop=startPreview(video,{...source,protocol:'http_ts',scope:'live'},vi.fn());
+ await vi.waitFor(()=>expect(mocks.tsLoad).toHaveBeenCalledTimes(1));
+ stop();await new Promise(resolve=>setTimeout(resolve,300));
+ expect(video.play).not.toHaveBeenCalled();expect(mocks.tsDestroy).toHaveBeenCalledTimes(1);
+});

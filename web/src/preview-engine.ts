@@ -57,9 +57,23 @@ export function startPreview(video:HTMLVideoElement,source:PreviewSource,notify:
    const {default:mpegts}=await import('mpegts.js');if(stopped)return;
    mpegts.LoggingControl.enableAll=false;
    if(!mpegts.getFeatureList().mseLivePlayback){finish('error','Este navegador não suporta prévia HTTP MPEG-TS. Use Chrome ou Edge atualizado e codecs compatíveis.',false);return}
-   const player=mpegts.createPlayer({type:'mpegts',isLive:true,withCredentials:true,url},{enableWorker:false,enableWorkerForMSE:false,enableStashBuffer:true,autoCleanupSourceBuffer:true,autoCleanupMaxBackwardDuration:15,autoCleanupMinBackwardDuration:5,liveBufferLatencyChasing:true,liveBufferLatencyMaxLatency:10,liveBufferLatencyMinRemain:4});
+   const player=mpegts.createPlayer({type:'mpegts',isLive:true,withCredentials:true,url},{enableWorker:false,enableWorkerForMSE:false,enableStashBuffer:true,autoCleanupSourceBuffer:true,autoCleanupMaxBackwardDuration:15,autoCleanupMinBackwardDuration:5,liveBufferLatencyChasing:!source.scope,liveBufferLatencyMaxLatency:10,liveBufferLatencyMinRemain:4});
    release=()=>player.destroy();player.on(mpegts.Events.ERROR,(_type,_detail,info)=>{const code=Number(info?.code);finish('error',code===401||code===403?'Acesso ao canal recusado. Entre novamente no painel.':'Falha MPEG-TS. Aguardando reconex\u00e3o.',!!source.scope&&code!==401&&code!==403)});
-   player.attachMediaElement(video);player.load();play();
+   player.attachMediaElement(video);player.load();
+   if(source.scope){
+    // Keep a jitter reserve before playback. Seeking toward the live edge on
+    // bursty SRT/HLS inputs repeatedly consumes that reserve.
+    const startBuffered=()=>{
+     if(stopped)return;
+     const ranges=video.buffered;
+     for(let i=0;i<ranges.length;i++){
+      const position=Math.max(video.currentTime,ranges.start(i));
+      if(ranges.end(i)-position>=6){video.currentTime=position;play();return}
+     }
+     timers.push(setTimeout(startBuffered,250));
+    };
+    startBuffered();
+   }else play();
   }
  })().catch(()=>finish('error','Não foi possível iniciar o player. Atualize a página e confira sinal, autorização e compatibilidade do navegador.'));
  return stop;
