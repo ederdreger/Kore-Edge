@@ -47,9 +47,10 @@ trap 'rm -rf -- "$work"' EXIT
 # Refuse custom proxy directives rather than dropping security settings silently.
 render_gateway "$host" "$port" "$backend" "$ipv6" >"$work/legacy"
 render_panel_gateway "$host" "$port" "$backend" "$ipv6" >"$work/panel"
-render_legacy_panel_gateway "$host" "$port" "$backend" "$ipv6" >"$work/previous-panel"
+render_legacy_panel_gateway "$host" "$port" "$backend" "$ipv6" | sed 's/client_max_body_size 64k;/client_max_body_size 16k;/' >"$work/previous-panel"
+render_pre_media_panel_gateway "$host" "$port" "$backend" "$ipv6" >"$work/previous-embedded-panel"
 sed '/^[[:space:]]*$/d' "$gateway" >"$work/actual"
-if ! cmp -s <(sed '/^[[:space:]]*$/d' "$work/legacy") "$work/actual" && ! cmp -s <(sed '/^[[:space:]]*$/d' "$work/panel") "$work/actual" && ! cmp -s <(sed '/^[[:space:]]*$/d' "$work/previous-panel") "$work/actual"; then die 'Gateway personalizado; revisar antes de substituir.'; fi
+if ! cmp -s <(sed '/^[[:space:]]*$/d' "$work/legacy") "$work/actual" && ! cmp -s <(sed '/^[[:space:]]*$/d' "$work/panel") "$work/actual" && ! cmp -s <(sed '/^[[:space:]]*$/d' "$work/previous-panel") "$work/actual" && ! cmp -s <(sed '/^[[:space:]]*$/d' "$work/previous-embedded-panel") "$work/actual"; then die 'Gateway personalizado; revisar antes de substituir.'; fi
 revision=$(git -c safe.directory="$source_dir" -C "$source_dir" rev-parse --verify HEAD)
 git -c safe.directory="$source_dir" -C "$source_dir" diff --quiet && git -c safe.directory="$source_dir" -C "$source_dir" diff --cached --quiet || die 'Checkout modificado.'
 old_release=$(readlink -f /opt/kore-edge/current)
