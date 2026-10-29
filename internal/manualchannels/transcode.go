@@ -59,7 +59,7 @@ func (s *Service) Encoders(ctx context.Context, ffmpeg string) EncoderCapabiliti
 	if s.encoders.path == ffmpeg && time.Since(s.encoders.at) < time.Minute {
 		return s.encoders.value
 	}
-	result := EncoderCapabilities{Devices: []EncoderDevice{}, MaxConcurrent: 2, Warning: "Sem transcodificar preserva o fluxo original. Processamento utiliza recursos e exige codecs compatíveis."}
+	result := EncoderCapabilities{Devices: []EncoderDevice{}, MaxConcurrent: cap(s.transcodeSlots), Warning: "Sem transcodificar preserva o fluxo original. Processamento utiliza recursos e exige codecs compatíveis."}
 	if executable(ffmpeg) {
 		candidates := []EncoderDevice{{"cpu", "Processador (CPU) · H.264"}}
 		paths, _ := filepath.Glob("/dev/nvidia[0-9]*")
@@ -167,7 +167,7 @@ func (s *Service) encodeReserved(parent context.Context, input io.ReadCloser, ff
 			t.logoPaths[track.Logo] = path
 		}
 	}
-	return s.runEncoder(parent, input, ffmpeg, transcodeArgs(t), release, true, progress...)
+	return s.runEncoder(parent, input, ffmpeg, configuredTranscodeArgs(t, s.encoderThreads), release, true, progress...)
 }
 
 // An opt-in reserve needs a single remuxer to normalize transport continuity

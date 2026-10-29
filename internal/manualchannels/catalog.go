@@ -31,6 +31,7 @@ type Service struct {
 	mediaInfo      map[string]*pipelineMedia
 	encoders       encoderCache
 	transcodeSlots chan struct{}
+	encoderThreads int
 	fallback       Catalog
 	client         *http.Client
 	lookup         func(context.Context, string) ([]net.IPAddr, error)

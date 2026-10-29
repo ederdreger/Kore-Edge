@@ -212,7 +212,7 @@ func servePanel(ctx context.Context, ln net.Listener, store *catalog.Store, engi
 		if partnerCatalog != nil {
 			fallback = partnerCatalog
 		}
-		direct, _ = manualchannels.New(filepath.Join(users.Directory(), "manual-channels"), fallback)
+		direct, _ = manualchannels.NewWithEncodingLimits(filepath.Join(users.Directory(), "manual-channels"), fallback, limits.Transcoders, limits.EncoderThreads)
 		if direct != nil {
 			defer direct.Close()
 			sourceCatalog = direct

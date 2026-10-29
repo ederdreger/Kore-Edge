@@ -76,6 +76,9 @@ func TestNativeAdvancedTranscode(t *testing.T) {
 	configs[2].GOP = 25
 	for i, p := range configs {
 		s, _ := processingFixture(t)
+		if i == 0 {
+			s.encoderThreads = 0
+		} // Exercise automatic CPU workers with multiple renditions.
 		release, e := s.reserveEncoder()
 		if e != nil {
 			t.Fatal(e)

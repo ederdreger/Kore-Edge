@@ -3,6 +3,13 @@ import {afterEach,expect,it,vi} from 'vitest';
 import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
 import {ChannelProcessing,ChannelProcessingSummary} from './media-channel-processing';
 afterEach(()=>{cleanup();vi.restoreAllMocks()});
+it('uses recent encoding progress when the lifetime average is still recovering',async()=>{
+ const call=vi.fn(async()=>({local:true,inputs:[],transcode:{mode:'h264',fps:25,device:'cpu'},encoder:{state:'running',frames:1000,fps:10,speed:0.4,window_fps:25,window_speed:1.02}}));
+ render(<ChannelProcessingSummary id="synthetic" live={{admin:true,call} as any} stream={{state:'running',interruptions:0,metrics:{}} as any} fallbackProtocol="http_ts"/>);
+ expect((await screen.findByText(/Codificador:/)).textContent).toContain('25.0 quadros/s');
+ expect(screen.getByText(/Codificador:/).textContent).toContain('1.02');
+ expect(screen.queryByText(/Ritmo abaixo do tempo real/)).toBeNull();
+});
 it('shows the active SRT input and measured input/output tracks separately',async()=>{
  const call=vi.fn(async()=>({local:true,inputs:[{key:'main',protocol:'srt'}],active_key:'main',transcode:{mode:'copy'},input_media:{video:'h264',height:1080,tracks:[{kind:'video',codec:'h264',index:0,width:1920,height:1080,pid:803}]},output_media:{audio:'aac',height:720,tracks:[{kind:'audio',codec:'aac',index:1,channels:2,language:'por',sample_rate:48000,bits_per_second:131000}]}}));
  render(<ChannelProcessingSummary id="synthetic" live={{admin:true,call} as any} stream={{state:'running',interruptions:0,metrics:{bits_per_second:3000000},started_at:new Date().toISOString()} as any} fallbackProtocol="hls"/>);
