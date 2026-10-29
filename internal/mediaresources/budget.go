@@ -52,6 +52,17 @@ func ConfigureLimits(inputLimit, outputLimit int) error {
 
 func Configure(cmd *exec.Cmd) {
 	cmd.Args = append([]string{cmd.Args[0], "-threads", "1"}, cmd.Args[1:]...)
+	configureEnvironment(cmd)
+}
+
+// Encoding must keep pace with live HD video. Bound decoder/filter parallelism
+// independently of the host CPU count; copy receivers keep their single-thread budget.
+func ConfigureEncoding(cmd *exec.Cmd) {
+	cmd.Args = append([]string{cmd.Args[0], "-threads", "2", "-filter_threads", "2", "-filter_complex_threads", "2"}, cmd.Args[1:]...)
+	configureEnvironment(cmd)
+}
+
+func configureEnvironment(cmd *exec.Cmd) {
 	env := cmd.Env
 	if env == nil {
 		env = os.Environ()

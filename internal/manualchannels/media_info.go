@@ -51,6 +51,7 @@ type SRTMediaStats struct {
 	LatencyMS     uint64  `json:"latency_ms"`
 }
 type pipelineMedia struct {
+	encoder       *encodingProgress
 	backup        bool
 	input, output *MediaInfo
 	srt           func() *SRTMediaStats

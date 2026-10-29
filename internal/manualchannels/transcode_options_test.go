@@ -49,7 +49,7 @@ func TestAdvancedProcessingPersistsAndRejectsUnsafeOptions(t *testing.T) {
 		t.Fatal("unbounded watchdog")
 	}
 	args := strings.Join(transcodeArgs(v), " ")
-	for _, part := range []string{"-filter:v:1", "-bf:v:0 2", "-refs:v:0 2", "-profile:v:0 main", "-ar 48000"} {
+	for _, part := range []string{"-filter:v:1", "-bf:v:0 2", "-refs:v:0 2", "-profile:v:0 main", "-threads:v:0 4", "-ar 48000"} {
 		if !strings.Contains(args, part) {
 			t.Fatal("option missing", part)
 		}
@@ -76,12 +76,21 @@ func TestNativeAdvancedTranscode(t *testing.T) {
 	configs[2].GOP = 25
 	for i, p := range configs {
 		s, _ := processingFixture(t)
-		reader, e := s.transcode(ctx, io.NopCloser(bytes.NewReader(sample)), tool, p)
+		release, e := s.reserveEncoder()
+		if e != nil {
+			t.Fatal(e)
+		}
+		progress := newEncodingProgress()
+		reader, e := s.encodeReserved(ctx, io.NopCloser(bytes.NewReader(sample)), tool, p, release, progress)
 		if e != nil {
 			t.Fatal(e)
 		}
 		out, e := io.ReadAll(io.LimitReader(reader, 8<<20))
 		reader.Close()
+		if measured := progress.snapshot(); !p.VideoCopy && measured.Frames == 0 || measured.Speed == nil || measured.ExitCode == nil || *measured.ExitCode != 0 {
+			data, _ := json.Marshal(measured)
+			t.Fatalf("native encoding progress unavailable for profile %d: %s", i, data)
+		}
 		if e != nil {
 			t.Fatalf("profile %d: %v", i, e)
 		}

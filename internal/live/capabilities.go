@@ -23,6 +23,14 @@ func (m *Manager) Capabilities() (Capabilities, error) {
 		all = []multicast.Interface{}
 		warning = "Inventário de interfaces indisponível. Entradas HTTP, HLS e SRT continuam configuráveis; UDP exige inventário válido."
 	}
+	if available {
+		for _, nic := range all {
+			if nic.IPv4PrimaryOnly {
+				warning = "Inventário local compatível com o isolamento do serviço; mostra o IPv4 primário de cada interface. Confirme interface e IP antes de enviar."
+				break
+			}
+		}
+	}
 	ffmpeg, _ := exec.LookPath("ffmpeg")
 	ffprobe, _ := exec.LookPath("ffprobe")
 	if !trustedTool(ffmpeg, "ffmpeg") {

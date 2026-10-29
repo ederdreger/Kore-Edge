@@ -62,27 +62,32 @@ func (c Config) Validate() error {
 }
 
 type Interface struct {
-	MTU          int      `json:"mtu"`
-	PointToPoint bool     `json:"point_to_point"`
-	Loopback     bool     `json:"loopback"`
-	Name         string   `json:"name"`
-	Index        int      `json:"index"`
-	Up           bool     `json:"up"`
-	Multicast    bool     `json:"multicast"`
-	IPv4         []string `json:"ipv4"`
+	IPv4PrimaryOnly bool     `json:"ipv4_primary_only,omitempty"`
+	MTU             int      `json:"mtu"`
+	PointToPoint    bool     `json:"point_to_point"`
+	Loopback        bool     `json:"loopback"`
+	Name            string   `json:"name"`
+	Index           int      `json:"index"`
+	Up              bool     `json:"up"`
+	Multicast       bool     `json:"multicast"`
+	IPv4            []string `json:"ipv4"`
 }
 
 func Interfaces() ([]Interface, error) {
-	all, e := net.Interfaces()
+	return interfaceInventory(net.Interfaces, linuxCompatibleInterfaces)
+}
+
+func interfaceInventory(list func() ([]net.Interface, error), fallback func() ([]Interface, error)) ([]Interface, error) {
+	all, e := list()
 	if e != nil {
-		return nil, errors.New("interface inventory unavailable")
+		return fallback()
 	}
 	result := []Interface{}
 	for _, nic := range all {
 		entry := Interface{Name: nic.Name, Index: nic.Index, MTU: nic.MTU, PointToPoint: nic.Flags&net.FlagPointToPoint != 0, Loopback: nic.Flags&net.FlagLoopback != 0, Up: nic.Flags&net.FlagUp != 0, Multicast: nic.Flags&net.FlagMulticast != 0, IPv4: []string{}}
 		addrs, e := nic.Addrs()
 		if e != nil {
-			return nil, errors.New("interface inventory unavailable")
+			return fallback()
 		}
 		for _, a := range addrs {
 			p, e := netip.ParsePrefix(a.String())
