@@ -156,6 +156,13 @@ render_legacy_panel_gateway() {
 
 # Exact historical session gateway, before media ingest routes/body-limit changes.
 # Used only for update recognition; never installs a legacy configuration.
+panel_gateway_backend() {
+ local backend
+ backend=$(sed -n 's/^[[:space:]]*proxy_pass http:\/\/\(127\.0\.0\.1:[0-9]*\);$/\1/p' "$1" | sort -u)
+ [[ $backend =~ ^127\.0\.0\.1:[0-9]+$ ]] || return 1
+ printf '%s\n' "$backend"
+}
+
 render_pre_media_panel_gateway() {
  render_legacy_panel_gateway "$@" | sed 's/client_max_body_size 64k;/client_max_body_size 16k;/' | awk '
  /^[[:space:]]*server \{/ {

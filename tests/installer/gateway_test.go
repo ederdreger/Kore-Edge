@@ -526,6 +526,17 @@ func TestPreMediaPanelRendererRecognizesOnlyHistoricalRoutes(t *testing.T) {
 		t.Fatal("historical configuration must be compared exactly")
 	}
 }
+func TestPanelBackendAcceptsRepeatedSameTargetAndRejectsDivergence(t *testing.T) {
+	cmd := exec.Command(bash(t), "-c", `source ../../scripts/gateway-lib.sh
+ file=$(mktemp);trap 'rm -f "$file"' EXIT
+ render_panel_gateway panel.example.com 8443 127.0.0.1:18080 0 >"$file"
+ [[ $(panel_gateway_backend "$file") == 127.0.0.1:18080 ]] || exit 1
+ printf '\n proxy_pass http://127.0.0.1:19090;\n' >>"$file"
+ if panel_gateway_backend "$file"; then exit 1; fi`)
+	if out, e := cmd.CombinedOutput(); e != nil {
+		t.Fatal("backend recognition failed", string(out), e)
+	}
+}
 func TestPanelUpdateAndRecoveryArePlanByDefault(t *testing.T) {
 	for _, script := range []string{"update-panel.sh", "reset-admin.sh"} {
 		command := exec.Command(bash(t), "../../scripts/"+script, "--plan")

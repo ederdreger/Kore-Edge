@@ -36,7 +36,7 @@ for unit in kore-edge.service kore-edge-gateway.service; do
 done
 config=/etc/kore-edge/edge.yaml
 gateway=/etc/kore-edge/gateway/nginx.conf
-backend=$(sed -n 's/^[[:space:]]*proxy_pass http:\/\/\(127\.0\.0\.1:[0-9]*\);$/\1/p' "$gateway")
+backend=$(panel_gateway_backend "$gateway") || die 'Gateway nao reconhecido.'
 host=$(sed -n 's/^[[:space:]]*server_name "\([^"]*\)";$/\1/p' "$gateway")
 port=$(sed -n 's/^[[:space:]]*listen 0.0.0.0:\([0-9]*\) ssl;$/\1/p' "$gateway")
 valid_public_host "$host" && valid_gateway_port "$port" && [[ $backend =~ ^127\.0\.0\.1:[0-9]+$ ]] || die 'Gateway nao reconhecido.'
