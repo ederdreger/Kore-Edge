@@ -71,17 +71,18 @@ type InputView struct {
 	Certificate   string `json:"certificate,omitempty"`
 }
 type ProcessingView struct {
-	Revision      uint64         `json:"revision"`
-	Inputs        []InputView    `json:"inputs"`
-	Transcode     Transcode      `json:"transcode"`
-	ActiveKey     string         `json:"active_key"`
-	Local         bool           `json:"local"`
-	InputReceiver string         `json:"input_receiver,omitempty"`
-	InputSRT      *SRTMediaStats `json:"input_srt,omitempty"`
-	InputMedia    *MediaInfo     `json:"input_media,omitempty"`
-	OutputMedia   *MediaInfo     `json:"output_media,omitempty"`
-	Policy        InputPolicy    `json:"policy"`
-	BackupActive  bool           `json:"backup_active"`
+	Revision      uint64            `json:"revision"`
+	Inputs        []InputView       `json:"inputs"`
+	Transcode     Transcode         `json:"transcode"`
+	ActiveKey     string            `json:"active_key"`
+	Local         bool              `json:"local"`
+	InputReceiver string            `json:"input_receiver,omitempty"`
+	InputSRT      *SRTMediaStats    `json:"input_srt,omitempty"`
+	InputMedia    *MediaInfo        `json:"input_media,omitempty"`
+	OutputMedia   *MediaInfo        `json:"output_media,omitempty"`
+	Policy        InputPolicy       `json:"policy"`
+	BackupActive  bool              `json:"backup_active"`
+	Encoder       *EncodingSnapshot `json:"encoder,omitempty"`
 }
 
 var processingID = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,80}$`)
@@ -163,6 +164,9 @@ func (s *Service) Processing(id string) (ProcessingView, error) {
 	p := s.processingLocked(id, c)
 	out := ProcessingView{Revision: s.revisionLocked(), Inputs: []InputView{}, Transcode: p.Transcode, ActiveKey: s.activeInput[id], Local: ok, Policy: p.Policy}
 	if media := s.mediaInfo[id]; media != nil {
+		if media.encoder != nil {
+			out.Encoder = media.encoder.snapshot()
+		}
 		out.BackupActive = media.backup
 		out.InputMedia, out.OutputMedia = media.input, media.output
 		out.InputReceiver = media.receiver
@@ -452,6 +456,9 @@ func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg,
 		return nil, true, ErrUnavailable
 	}
 	media := &pipelineMedia{srt: srtMediaStats(reader), inputRate: traffic.New()}
+	if p.Transcode.Mode != "copy" {
+		media.encoder = newEncodingProgress()
+	}
 	if named, ok := reader.(interface{ ReceiverName() string }); ok {
 		media.receiver = named.ReceiverName()
 	} else if media.srt != nil {
@@ -489,7 +496,7 @@ func (s *Service) OpenConfiguredMedia(ctx context.Context, id, protocol, ffmpeg,
 		}
 		return reader, true, nil
 	}
-	result, e := s.encodeReserved(ctx, reader, ffmpeg, p.Transcode, release)
+	result, e := s.encodeReserved(ctx, reader, ffmpeg, p.Transcode, release, media.encoder)
 	retained = e == nil
 	if e == nil {
 		result = observeMedia(ctx, result, ffprobe, record(false))

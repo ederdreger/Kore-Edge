@@ -4,11 +4,13 @@ import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
 import {MediaChannelOutput} from './media-channel-output';
 afterEach(()=>{cleanup();vi.restoreAllMocks()});
 const base='/api/v1/playback/SYNTHETIC/synthetic/';
-function fixture({admin=true,paused=false,hls=true,conflict=false,udpError=false}={}){
+function fixture({admin=true,paused=false,hls=true,conflict=false,udpError=false,inventoryFailsOnce=false}={}){
+ let inventoryCalls=0;
  let configuration:any={revision:3,network:{enabled:false,bind_ip:'',public_host:'',rtsp_port:0,rtmp_port:0,srt_port:0},channel:{dash:false,rtsp:false,rtmp:false,srt:false,segments:4,duration:2,max_readers:16},status:{bridge:'disabled',feed:'disabled',dash:'disabled',last_packet:''},mediamtx_available:true,ffmpeg_available:true};
  const row:any={channel:{id:'synthetic',name:'Canal sintético',outputs:['hls','udp'],protocols:[{id:'http_ts'}]},config:{channel_id:'synthetic',protocol:'http_ts',hls,resume:!paused,auto_paused:paused},stream:{state:paused?'stopped':'running',hls_state:hls&&!paused?'running':'disabled',udp_state:'disabled',metrics:{last_packet_at:new Date().toISOString()}}};
  const call=vi.fn(async(method:string,path:string,body?:any)=>{
   if(path==='live/playback-links')return {links:[{channel_id:'synthetic',ts_path:base+'stream.ts',hls_path:base+'index.m3u8',embed_path:base+'embed.html',dash_path:base+'cmaf/index.mpd',cmaf_path:base+'cmaf/master.m3u8',info_path:base+'media_info.json'}]};
+  if(path==='live/capabilities'&&inventoryFailsOnce&&inventoryCalls++===0)throw new Error('synthetic inventory unavailable');
   if(path==='live/capabilities')return {tools:{ffmpeg:'/synthetic/ffmpeg',ffprobe:'/synthetic/ffprobe'},interfaces:[{name:'eth-lab',up:true,multicast:true,ipv4:['192.0.2.10']}]};
   if(path==='live/udp-plan'){if(udpError)throw new Error('Destino sintético inválido');return {}}
   if(method==='POST'){if(conflict)throw new Error('A configuração de saídas mudou.');configuration={...configuration,revision:4,channel:body.channel,network:body.network}}
@@ -51,3 +53,13 @@ it('preserves drafts after a revision conflict and does not claim success',async
  fixture({conflict:true});await screen.findByRole('form',{name:'Configuração das saídas'});fireEvent.change(screen.getByLabelText('Quantidade de segmentos DASH/CMAF'),{target:{value:'6'}});fireEvent.click(screen.getByRole('button',{name:'Salvar saídas'}));await screen.findByRole('alert');expect((screen.getByLabelText('Quantidade de segmentos DASH/CMAF') as HTMLInputElement).value).toBe('6');expect(screen.queryByText(/Saídas salvas/)).toBeNull();
 });
 it('does not fetch playback credentials or configuration for viewers',()=>{const {call}=fixture({admin:false});expect(call).not.toHaveBeenCalled();expect(screen.getByText(/Somente administradores/)).toBeTruthy()});
+it('reloads interfaces independently without discarding a UDP destination draft',async()=>{
+ const {action}=fixture({inventoryFailsOnce:true});await screen.findByRole('form',{name:'Configuração das saídas'});
+ await screen.findByText(/Não foi possível consultar as interfaces/);
+ fireEvent.click(screen.getByRole('checkbox',{name:'Habilitar envio ao destino'}));
+ fireEvent.change(screen.getByLabelText('Grupo multicast (239.x.x.x)'),{target:{value:'239.77.0.4'}});
+ fireEvent.click(screen.getByRole('button',{name:'Recarregar interfaces'}));
+ await screen.findByRole('option',{name:/eth-lab/});
+ expect((screen.getByLabelText('Grupo multicast (239.x.x.x)') as HTMLInputElement).value).toBe('239.77.0.4');
+ expect((screen.getByLabelText('Interface de saída') as HTMLSelectElement).value).toBe('');expect(action).not.toHaveBeenCalled();
+});

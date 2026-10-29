@@ -267,7 +267,7 @@ func configuredTranscodeArgs(t Transcode) []string {
 				args = append(args, "-preset"+suffix, preset)
 			}
 			if t.Device == "cpu" {
-				args = append(args, "-threads"+suffix, "1")
+				args = append(args, "-threads"+suffix, "4")
 			}
 			gop := t.GOP
 			if gop == 0 {

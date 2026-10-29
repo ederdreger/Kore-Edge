@@ -151,7 +151,7 @@ func (s *Service) transcode(parent context.Context, input io.ReadCloser, ffmpeg 
 	}
 	return result, err
 }
-func (s *Service) encodeReserved(parent context.Context, input io.ReadCloser, ffmpeg string, t Transcode, release func()) (io.ReadCloser, error) {
+func (s *Service) encodeReserved(parent context.Context, input io.ReadCloser, ffmpeg string, t Transcode, release func(), progress ...*encodingProgress) (io.ReadCloser, error) {
 	if !executable(ffmpeg) || !validateTranscode(t) {
 		input.Close()
 		return nil, ErrUnavailable
@@ -167,7 +167,7 @@ func (s *Service) encodeReserved(parent context.Context, input io.ReadCloser, ff
 			t.logoPaths[track.Logo] = path
 		}
 	}
-	return s.runEncoder(parent, input, ffmpeg, transcodeArgs(t), release)
+	return s.runEncoder(parent, input, ffmpeg, transcodeArgs(t), release, true, progress...)
 }
 
 // An opt-in reserve needs a single remuxer to normalize transport continuity
@@ -178,18 +178,33 @@ func (s *Service) copyReserved(parent context.Context, input io.ReadCloser, ffmp
 		return nil, ErrUnavailable
 	}
 	args := []string{"-hide_banner", "-loglevel", "quiet", "-nostdin", "-protocol_whitelist", "pipe", "-fflags", "+genpts", "-dts_delta_threshold", "0.1", "-f", "mpegts", "-i", "pipe:0", "-map", "0:v:0", "-map", "0:a?", "-c", "copy", "-mpegts_flags", "+resend_headers+initial_discontinuity", "-flush_packets", "1", "-f", "mpegts", "pipe:1"}
-	return s.runEncoder(parent, input, ffmpeg, args, release)
+	return s.runEncoder(parent, input, ffmpeg, args, release, false)
 }
-func (s *Service) runEncoder(parent context.Context, input io.ReadCloser, ffmpeg string, args []string, release func()) (io.ReadCloser, error) {
+func (s *Service) runEncoder(parent context.Context, input io.ReadCloser, ffmpeg string, args []string, release func(), encoding bool, progress ...*encodingProgress) (io.ReadCloser, error) {
 	ctx, cancel := context.WithCancel(parent)
+	var stats *encodingProgress
+	if encoding && len(progress) > 0 {
+		stats = progress[0]
+		args = append([]string{"-progress", "pipe:2", "-stats_period", "1", "-nostats"}, args...)
+	}
 	cmd := s.command(ctx, ffmpeg, args...)
-	mediaresources.Configure(cmd)
+	if encoding {
+		mediaresources.ConfigureEncoding(cmd)
+	} else {
+		mediaresources.Configure(cmd)
+	}
 	cmd.Stdin = input
 	cmd.Stderr = io.Discard
+	if stats != nil {
+		cmd.Stderr = stats
+	}
 	cmd.WaitDelay = time.Second
 	reader, writer := io.Pipe()
 	cmd.Stdout = writer
 	if cmd.Start() != nil {
+		if stats != nil {
+			stats.finish(ErrUnavailable, false)
+		}
 		cancel()
 		input.Close()
 		reader.Close()
@@ -199,6 +214,9 @@ func (s *Service) runEncoder(parent context.Context, input io.ReadCloser, ffmpeg
 	p := &encodedInput{reader: reader, input: input, cancel: cancel, done: make(chan struct{})}
 	go func() {
 		err := cmd.Wait()
+		if stats != nil {
+			stats.finish(err, ctx.Err() != nil)
+		}
 		cancel()
 		input.Close()
 		if err != nil {

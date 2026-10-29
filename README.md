@@ -497,3 +497,16 @@ HTTPS de um salto, reserva MP4 e logotipo por URL. Arquivos sao copiados e
 validados em armazenamento privado com cotas. Reserva usa remux em copy para
 manter continuidade entre trocas; grava apenas a reserva, com limite por canal.
 Nada e habilitado ate salvar no painel. Nao abre portas adicionais.
+
+## Interfaces UDP e ritmo de transcodificacao
+
+Em Linux com AF_NETLINK bloqueado pelo isolamento do servico, a descoberta
+de interfaces usa consultas GET via AF_INET e mostra os IPv4 primarios. Nao
+libera privilegios, altera NIC ou envia pacotes. Saidas permite recarregar
+somente o inventario, preservando o rascunho e exigindo interface/IP explicitos.
+Transcodificacao CPU usa ate quatro threads por faixa, com decodificacao e
+filtros limitados a duas threads; receptores em copy mantem o limite anterior.
+O diagnostico mostra FPS e ritmo numerico real do FFmpeg (1x = tempo real).
+Stderr bruto nao e gravado: somente progresso numerico e codigo de saida.
+Perfis pesados ainda exigem recursos suficientes ou GPU; as configuracoes
+salvas, bitrate, resolucao e qualidade escolhidos nao sao alterados.

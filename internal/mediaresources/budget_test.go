@@ -7,6 +7,20 @@ import (
 	"testing"
 )
 
+func TestEncodingBudgetBoundsDecoderAndFilterWorkers(t *testing.T) {
+	cmd := exec.Command("ffmpeg", "-i", "pipe:0")
+	ConfigureEncoding(cmd)
+	want := []string{"ffmpeg", "-threads", "2", "-filter_threads", "2", "-filter_complex_threads", "2", "-i", "pipe:0"}
+	if len(cmd.Args) != len(want) {
+		t.Fatal("unexpected encoder worker budget")
+	}
+	for i := range want {
+		if cmd.Args[i] != want[i] {
+			t.Fatal("unbounded or single-threaded encoding budget")
+		}
+	}
+}
+
 func TestConcurrentAdmissionAndRelease(t *testing.T) {
 	for _, acquire := range []func() (func(), bool){Input, Output} {
 		var accepted atomic.Int32
