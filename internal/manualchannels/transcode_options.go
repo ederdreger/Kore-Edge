@@ -190,7 +190,11 @@ func trackFilter(t Transcode, v VideoTrack) string {
 	return strings.Join(filters, ",")
 }
 
-func configuredTranscodeArgs(t Transcode) []string {
+func configuredTranscodeArgs(t Transcode, workers ...int) []string {
+	threads := 4
+	if len(workers) > 0 {
+		threads = workers[0]
+	}
 	args := append([]string{"-hide_banner", "-loglevel", "quiet", "-nostdin"}, deviceArgs(t.Device)...)
 	args = append(args, "-protocol_whitelist", "pipe", "-f", "mpegts", "-analyzeduration", "2000000", "-probesize", "2000000", "-i", "pipe:0")
 	logoInputs := map[int]int{}
@@ -267,7 +271,7 @@ func configuredTranscodeArgs(t Transcode) []string {
 				args = append(args, "-preset"+suffix, preset)
 			}
 			if t.Device == "cpu" {
-				args = append(args, "-threads"+suffix, "4")
+				args = append(args, "-threads"+suffix, strconv.Itoa(threads))
 			}
 			gop := t.GOP
 			if gop == 0 {

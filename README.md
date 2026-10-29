@@ -510,3 +510,12 @@ O diagnostico mostra FPS e ritmo numerico real do FFmpeg (1x = tempo real).
 Stderr bruto nao e gravado: somente progresso numerico e codigo de saida.
 Perfis pesados ainda exigem recursos suficientes ou GPU; as configuracoes
 salvas, bitrate, resolucao e qualidade escolhidos nao sao alterados.
+
+
+## Capacidade e diagnostico de transcodificacao
+
+O agente escala a admissao de transcodificadores com as CPUs visiveis, permite
+KORE_EDGE_TRANSCODERS e usa KORE_EDGE_ENCODER_THREADS=0 para paralelismo automatico
+do encoder CPU. Copy permanece sem transcodificar. O painel mostra ritmo recente,
+sem confundir a recuperacao com a media antiga. Quotas de CPU do servico nao sao
+alteradas pelo codigo. Veja [medicoes, limites e validacao](docs/DIAGNOSTICO-TRANSCODIFICACAO.md).

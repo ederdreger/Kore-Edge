@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	srt "github.com/datarhei/gosrt"
 	"kore-edge/internal/catalog"
 	"kore-edge/internal/multicast"
@@ -40,11 +41,21 @@ type Inventory struct {
 }
 
 func New(directory string, fallback Catalog) (*Service, error) {
+	return NewWithEncodingLimits(directory, fallback, 2, 4)
+}
+
+// Limits are immutable after construction; live reservations are never resized.
+func NewWithEncodingLimits(directory string, fallback Catalog, concurrent, workers int) (*Service, error) {
+	if concurrent < 1 || concurrent > 128 || workers < 0 || workers > 64 {
+		return nil, fmt.Errorf("invalid encoding capacity")
+	}
 	if security.PrivateDirectory(directory, true) != nil {
 		return nil, ErrUnavailable
 	}
 	s := &Service{directory: directory, fallback: fallback, data: state{Version: 1, Sources: []Source{}}, interfaces: multicast.Interfaces, lookup: lookupDefault, slots: make(chan struct{}, 2), transcodeSlots: make(chan struct{}, 2), dialSRT: srt.Dial, command: exec.CommandContext}
 	s.client = s.httpClient()
+	s.transcodeSlots = make(chan struct{}, concurrent)
+	s.encoderThreads = workers
 	file := filepath.Join(directory, "channels.json")
 	if _, e := os.Lstat(file); !os.IsNotExist(e) {
 		b, e := security.ReadPrivateFile(file, 4*1024*1024)
